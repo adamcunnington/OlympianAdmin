@@ -14,6 +14,7 @@ import os
 from admin import metadata
 from esutils import commands, menus, tools
 
+
 __all__ = (
     "module_menu", 
     "ModulesError", 
@@ -24,11 +25,14 @@ __all__ = (
     "DynamicMenu", 
 )
 
+
 _UNLOADED_PREFIX = "UNLOADED: "
+
 
 module_menu = menus.Menu()
 module_menu.title = metadata.VERBOSE_NAME
 module_menu.description = ":: Module Administration"
+
 
 class _Callback(commands.Callback):
     def __init__(self, action, *args, **kwargs):
@@ -36,19 +40,20 @@ class _Callback(commands.Callback):
         self.action = action
         
 class _Command(commands._Command):
-    def _invalid_syntax(self, *args, **kwargs):
+    def _invalid_syntax(self, command, args, user_ID=None):
         action = self.callback.action
         parameters = self.callback.parameters
         total_args = len(args)
-        user_id = kwargs.get(user_id)
-        if not action.menu_interface or total_args > len(parameters):
-            super(_Command, self)._invalid_syntax(user_id=user_id, *args)
+        if (not action.menu_interface or total_args > 
+            len(self.callback.parameters)):
+            super(_Command, self)._invalid_syntax(command, args, 
+                                                  user_ID=user_ID)
             return
         # Otherwise, the next parameter's menu needs sending.
-        parameters[total_args].menu.send(user_id)
-        menus.Menu.players[user_id].identifiers.extend((action.basename, ) + 
-                                                       args)
-                                                       
+        self.callback.parameters[total_args].menu.send(user_ID)
+        args.insert(0, action.basename)
+        menus.Menu.players[user_ID].identifiers.extend(args)
+        
 class _ClientConsoleCommand(_Command, commands.ClientConsoleCommand):
     pass
     
@@ -94,17 +99,17 @@ class Module(object):
         self.loaded = True
         
     @classmethod
-    def _menu_select(cls, user_id, identifiers):
+    def _menu_select(cls, user_ID, identifiers):
         action = identifiers[-1]
-        parameters = action.callback.parameters
+        parameters = action.parameters
         if not parameters:
             # If the action has no parameters, then its callback can be called 
             # straight away.
             action.callback.callable_name(commands.ClientSayCommand.INFORMER, 
-                                          user_id=user_id, by_menu=True)
+                                          user_ID=user_ID, by_menu=True)
             return
         # Otherwise, send the first parameter's menu.
-        parameters[0].menu.send(user_id, reset_navigation=False)
+        parameters[0].menu.send(user_ID, reset_navigation=False)
         
     def append(self, action):
         """Register an action to this module. If this is the first action with 
@@ -183,7 +188,8 @@ class Action(object):
         self.callable_name = callback
         self.basename = basename
         self.menu_interface = menu_interface
-        self.callback = _Callback(self, Action._callback, description)
+        self.callback = _Callback(self, self._callback, description)
+        self.parameters = self.callback.parameters
         client_console_command = _ClientConsoleCommand(self.callback)
         client_console_command.register("%s%s" %(metadata.CONSOLE_PREFIX, 
                                                  basename))
@@ -214,41 +220,37 @@ class Action(object):
             self._option.set_permission()
         self.actions[basename] = self
         
-    def _callback(self, informer, user_id=None, *args):
-        total_args = len(args)
-        if (total_args == len(self.callback.parameters) or 
-            not self.menu_interface):
-            self.callable_name(informer, user_id=user_id, by_menu=False, *args)
+    def _callback(self, informer, user_ID=None, *args):
+        defaults = [parameter.default_value 
+                    if parameter.default_value is not commands.ABSENT
+                    else None for parameter in self.parameters]
+        if (self.menu_interface and defaults and 
+            informer is not commands.ServerCommand.INFORMER):
+            _args = args
+            for index, value in enumerate(_args):
+                if value == defaults[index]:
+                    args.remove(value)
+            self.parameters[len(args)].menu.send(user_ID)
+            args = list(args)
+            args.insert(0, self.basename)
+            menus.Menu.players[user_ID].identifiers.extend(args)
             return
-        parameters[total_args].menu.send(user_id)
-        menus.Menu.players[user_id].identifiers.extend((self.basename, ) + 
-                                                       args)
-                                                       
-    def resend_menu(self, user_id, parameter):
+        self.callable_name(informer, user_ID=user_ID, by_menu=False, *args)
+        
+    def resend_menu(self, user_ID, parameter):
         """Resend the menu for the parameter to the user.
         
         Arguments:
-        user_id - the unique session ID of the user who's menu should be 
+        user_ID - the unique session ID of the user who's menu should be 
         closed.
         parameter - the parameter object to use.
         
         """
-        player = menus.Menu.players[user_id]
+        player = menus.Menu.players[user_ID]
         identifiers = player.identifiers
-        del identifiers[self.callback.parameters.index(parameter): ]
-        parameter.menu.send(user_id)
+        del identifiers[self.parameters.index(parameter): ]
+        parameter.menu.send(user_ID)
         player.identifiers.extend(identifiers)
-        
-    def set_parameter(self, *args, **kwargs):
-        """Set a parameter for the callback.
-        
-        Arguments:
-        args - The positional arguments defined by 
-        commands.Callback.set_parameter.
-        kwargs - The keyword arguments defined by 
-        commands.Callback.set_parameter.
-        """
-        self.callback.set_parameter(*args, **kwargs)
         
     def unload(self):
         """Unregister all registered client and server commands."""
@@ -262,51 +264,62 @@ class Action(object):
 class Parameter(commands.Parameter):
     """Create a parameter that can be used across multiple actions."""
     
-    def __init__(self, basename, description, item_getter=None, 
-                 verbose_name=None):
+    def __init__(self, basename, description, default_value=commands.ABSENT, 
+                 get_items=None, verbose_name=None):
         """Instantiate a Parameter object.
         
         Arguments:
         basename - the basename to identify the parameter by.
         description - a description of the values accepted.
-        item_getter (Keyword Default: None) - if the parameter's menu should 
+        default_value (Keyword Default: commands.ABSENT) - the default value 
+        the parameter should take. A value other than the default, ABSENT 
+        object will cause the parameter to be optional.
+        get_items (Keyword Default: None) - if the parameter's menu should 
         be dynamic, the name to call to dynamically fetch the menu's options.
         verbose_name (Keyword Default: None) - the custom verbose name to use 
         in text.
         
         """
-        super(Parameter, self).__init__(basename, description)
-        self.menu = Menu(item_getter)
+        super(Parameter, self).__init__(basename, description, default_value)
+        if default_value is commands.ABSENT:
+            self.menu = Menu(get_items)
+        else:
+            self._get_items = get_items
+            self.menu = Menu(self._item_getter)
         if verbose_name is None:
             self.verbose_name = tools.format_verbose_name(self.basename)
         else:
             self.verbose_name = verbose_name
         self.menu.title = "Parameter: %s" % self.verbose_name
         
+    def _item_getter(self, user_ID):
+        if self._get_items is None:
+            items = []
+        else:
+            items = self._get_items(user_ID)
+        items.insert(0, menus.MenuOption("Default Value (%s)" 
+                                         % self.default_value, 
+                                         self.default_value))
+        return items
+        
     @classmethod
-    def _menu_select(cls, user_id, identifiers):
-        action = Action.actions[identifiers.pop(0)]
+    def _menu_select(cls, user_ID, *identifiers):
         identifiers = [identifier for identifier in identifiers 
-                       if indentifier is not None]
+                       if identifier is not menus.ABSENT]
+        action = Action.actions[identifiers.pop(0)]
         total_args = len(identifiers)
-        parameters = action.callback.parameters
-        if total_args < len(parameters):
+        if total_args < len(action.parameters):
             # If arguments have been omitted, the next parameter's menu needs 
             # sending.
-            parameters[total_args].menu.send(user_id, reset_navigation=False)
+            action.parameters[total_args].menu.send(user_ID, 
+                                                    reset_navigation=False)
         else:
             # Otherwise, the action's callback can be called.
-            while commands.ABSENT in identifiers:
-                index = identifiers.index(commands.ABSENT)
-                parameter = action.callback.parameters[index]
-                identifiers[index] = action.callback.defaults[parameter]
-            action.callback.callable_name(commands.ClientSayCommand.INFORMER, 
-                                          user_id=user_id, by_menu=True, 
-                                          *identifiers)
-                                          
+            action.callable_name(commands.ClientSayCommand.INFORMER, 
+                                 user_ID=user_ID, by_menu=True, *identifiers)
+                                 
 class Menu(menus.Menu):
     """Create a menu to be used by a parameter, primarily or as a submenu."""
     
-    def __init__(self, item_getter=None):
-        super(Menu, self).__init__(Parameter._menu_select, 
-                                   item_getter=item_getter)
+    def __init__(self, get_items=None):
+        super(Menu, self).__init__(Parameter._menu_select, get_items=get_items)
