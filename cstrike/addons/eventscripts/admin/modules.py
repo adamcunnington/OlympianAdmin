@@ -220,18 +220,17 @@ class Action(object):
             self._option.set_permission()
         self.actions[basename] = self
         
-    def _callback(self, informer, user_ID=None, *args):
+    def _callback(self, informer, args, user_ID=None):
         defaults = [parameter.default_value 
                     if parameter.default_value is not commands.ABSENT
                     else None for parameter in self.parameters]
         if (self.menu_interface and defaults and 
             informer is not commands.ServerCommand.INFORMER):
-            _args = args
+            _args = list(args)
             for index, value in enumerate(_args):
                 if value == defaults[index]:
                     args.remove(value)
             self.parameters[len(args)].menu.send(user_ID)
-            args = list(args)
             args.insert(0, self.basename)
             menus.Menu.players[user_ID].identifiers.extend(args)
             return

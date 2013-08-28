@@ -88,34 +88,38 @@ def _help_player(informer, action, user_ID=None, by_menu=False):
         informer("  <parameter> is required")
         informer("  [parameter] is optional")
         informer()
+        informer()
         informer("### CORE ACTIONS ###")
         for action in _core_actions:
             message = "  %s %s" %(action.basename.upper(), 
                                   action.callback.syntax)
             message += "  ~ %s" % action.callback.description
             informer(message)
-            informer("  Parameters:")
-            for parameter in action.callback.parameters:
-                informer("    %s: %s" %(parameter.basename, 
-                                        parameter.description))
-            informer()
-        informer()
-        informer()
-        informer("### MODULES ###")
-        for module in modules.Module.modules.itervalues():
-            informer("  %s" % module.verbose_name)
-            for action in module.actions:
-                message = "    %s %s" %(action.basename.upper(), 
-                                        action.callback.syntax)
-                message += "    ~ %s" % action.callback.description
-                informer(message)
-                informer("    Parameters:")
+            if action.callback.parameters:
+                informer("  Parameters:")
                 for parameter in action.callback.parameters:
-                    informer("      %s: %s" %(parameter.basename, 
-                                              parameter.description))
+                    informer("    %s: %s" %(parameter.basename, 
+                                            parameter.description))
+            informer()
+        informer()
+        informer()
+        _modules = modules.Module.modules.itervalues()
+        if _modules:
+            informer("### MODULES ###")
+            for module in _modules:
+                informer("  %s" % module.verbose_name)
+                for action in module.actions:
+                    message = "    %s %s" %(action.basename.upper(), 
+                                            action.callback.syntax)
+                    message += "    ~ %s" % action.callback.description
+                    informer(message)
+                    informer("    Parameters:")
+                    for parameter in action.callback.parameters:
+                        informer("      %s: %s" %(parameter.basename, 
+                                                  parameter.description))
+                    informer()
                 informer()
-            informer()
-            informer()
+                informer()
         informer("### END OF HELP ###")
         informer()
     else:
