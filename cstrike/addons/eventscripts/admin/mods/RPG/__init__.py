@@ -12,6 +12,7 @@ from sqlalchemy.ext.declarative import declarative_base
 import es
 from esutils import menus, players, tools
 
+
 __all__ = ( 
     "Player", 
     "PlayerPerk", 
@@ -20,6 +21,7 @@ __all__ = (
     )
 
 _Base = declarative_base()
+
 
 class Player(_Base):
     __tablename__ = "Players"
@@ -31,10 +33,11 @@ class Player(_Base):
     experience_points = Column(Integer, default=0)
     level = Column(Integer, default=0)
     credits = Column(Integer, default=50)
-    
+
     def __init__(self, steam_ID, name):
         self.steam_ID = steam_ID
         self.name = name
+
 
 class _Perk(_Base):
     __tablename__ = "Perks"
@@ -46,6 +49,7 @@ class _Perk(_Base):
     def __init__(self, basename, verbose_name):
         self.basename = basename
         self.verbose_name = verbose_name
+
 
 class PlayerPerk(_Base):
     __tablename__ = "Player Perks"
@@ -59,6 +63,7 @@ class PlayerPerk(_Base):
     def __init__(self, player_ID, perk_ID):
         self.player_ID = player_ID
         self.perk_ID = perk_ID
+
 
 class Perk(object):
     _perks = {}
@@ -89,6 +94,7 @@ class Perk(object):
         self.enabled = True
         self._perks[basename] = self
 
+
 def player_activate(event_var):
     steam_ID = event_var["es_steamid"]
     with SessionWrapper() as session:
@@ -103,24 +109,29 @@ def player_activate(event_var):
         session.expunge(player)
     Player.players[int(event_var["userid"])] = player
 
+
 def player_changename(event_var):
     with SessionWrapper() as session:
         player = session.query(Player).filter(Player.steam_ID == 
                                               event_var["es_steamid"]).first()
         player.name = event_var["newname"]
 
+
 def player_disconnect(event_var):
     user_ID = int(event_var["user_ID"])
     if user_ID in Player.players:
         Player.players.remove(user_ID)
 
+
 def unload():
     for Perk in Perk._perks:
         Perk.unload_callable()
 
+
 _engine = create_engine("sqlite:///%s" % os.path.join(
                                     os.path.dirname(__file__), "players.db"))
 _Base.metadata.create_all(_engine)
+
 
 class SessionWrapper(object):
     _Session = sessionmaker(bind=_engine)
@@ -134,6 +145,7 @@ class SessionWrapper(object):
             self.session.commit()
         self.session.close()
 
+
 def _rpg_menu_callback(user_ID, (player, perk, player_perk, level, cost)):
     player.credits -= cost
     player_perk.level += 1
@@ -143,8 +155,10 @@ def _rpg_menu_callback(user_ID, (player, perk, player_perk, level, cost)):
         perk.level_up_callable(user_ID, level)
     _rpg_menu.send(user_ID)
 
+
 def _get_description(user_ID):
     return ":: Buy Menu (%s Credits)" % Player.players[user_ID].credits
+
 
 def _get_items(user_ID):
     items = []
@@ -179,9 +193,11 @@ def _get_items(user_ID):
                                  selectable))
     return items
 
+
 _rpg_menu = menus.Menu(_rpg_menu_callback, get_description=_get_description, 
                        get_items=_get_items)
 _rpg_menu.title = "OLYMPIAN# RPG"
+
 
 def player_say(event_var):
     _rpg_menu.send(int(event_var["userid"]))
