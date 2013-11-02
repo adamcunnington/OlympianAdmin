@@ -22,8 +22,8 @@ __all__ = (
 _Base = declarative_base()
 
 class Player(_Base):
-    __tablename__ = "players"
-    _players = {}
+    __tablename__ = "Players"
+    players = {}
 
     ID = Column(Integer, primary_key=True, autoincrement=True)
     steam_ID = Column(Unicode)
@@ -37,7 +37,7 @@ class Player(_Base):
         self.name = name
 
 class _Perk(_Base):
-    __tablename__ = "perks"
+    __tablename__ = "Perks"
 
     ID = Column(Integer, primary_key=True, autoincrement=True)
     basename = Column(Unicode)
@@ -48,7 +48,7 @@ class _Perk(_Base):
         self.verbose_name = verbose_name
 
 class PlayerPerk(_Base):
-    __tablename__ = "player_perks"
+    __tablename__ = "Player Perks"
 
     player_ID = Column(Integer, ForeignKey(Player.ID), primary_key=True)
     perk_ID = Column(Integer, ForeignKey(_Perk.ID), primary_key=True)
@@ -80,10 +80,12 @@ class Perk(object):
             record = session.query(_Perk).filter(_Perk.basename == 
                                                   basename).first()
             if record is not None:
-                record = record
+                self.record = record
             else:
-                record = _Perk(basename, verbose_name)
-                session.add(record)
+                self.record = _Perk(basename, verbose_name)
+                session.add(self.record)
+                session.flush()
+                session.expunge(self.record)
         self.enabled = True
         self._perks[basename] = self
 
@@ -99,7 +101,7 @@ def player_activate(event_var):
         session.add(player)
         session.flush()
         session.expunge(player)
-    Player._players[int(event_var["userid"])] = player
+    Player.players[int(event_var["userid"])] = player
 
 def player_changename(event_var):
     with SessionWrapper() as session:
@@ -109,8 +111,8 @@ def player_changename(event_var):
 
 def player_disconnect(event_var):
     user_ID = int(event_var["user_ID"])
-    if user_ID in Player._players:
-        Player._players.remove(user_ID)
+    if user_ID in Player.players:
+        Player.players.remove(user_ID)
 
 def unload():
     for Perk in Perk._perks:
@@ -142,11 +144,11 @@ def _rpg_menu_callback(user_ID, (player, perk, player_perk, level, cost)):
     _rpg_menu.send(user_ID)
 
 def _get_description(user_ID):
-    return ":: Buy Menu (%s Credits)" % Player._players[user_ID].credits
+    return ":: Buy Menu (%s Credits)" % Player.players[user_ID].credits
 
 def _get_items(user_ID):
     items = []
-    player = Player._players[user_ID]
+    player = Player.players[user_ID]
     with SessionWrapper() as session:
         perk_records = session.query(_Perk).order_by(_Perk.verbose_name).all()
         for perk_record in perk_records:
