@@ -1,15 +1,15 @@
 # <path to game directory>/addons/eventscipts/admin/mods/rpg/
-# __init__.py
+# rpg.py
 # by Adam Cunnington
 
 from __future__ import with_statement
 import os
 
-from sqlalchemy import Column, create_engine, ForeignKey, Integer, Unicode
+from sqlalchemy import (Column, create_engine, ForeignKey, Integer, String, 
+                        Unicode)
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
-import es
 from esutils import menus, players, tools
 
 
@@ -28,11 +28,11 @@ class Player(_Base):
     players = {}
 
     ID = Column(Integer, primary_key=True, autoincrement=True)
-    steam_ID = Column(Unicode)
-    name = Column(Unicode)
-    experience_points = Column(Integer, default=0)
-    level = Column(Integer, default=0)
-    credits = Column(Integer, default=50)
+    steam_ID = Column(String, nullable=False)
+    name = Column(Unicode, nullable=False)
+    experience_points = Column(Integer, default=0, nullable=False)
+    level = Column(Integer, default=0, nullable=False)
+    credits = Column(Integer, default=1500, nullable=False)
 
     def __init__(self, steam_ID, name):
         self.steam_ID = steam_ID
@@ -43,8 +43,8 @@ class _Perk(_Base):
     __tablename__ = "Perks"
 
     ID = Column(Integer, primary_key=True, autoincrement=True)
-    basename = Column(Unicode)
-    verbose_name = Column(Unicode)
+    basename = Column(String, nullable=False)
+    verbose_name = Column(String, nullable=False)
 
     def __init__(self, basename, verbose_name):
         self.basename = basename
@@ -52,11 +52,11 @@ class _Perk(_Base):
 
 
 class PlayerPerk(_Base):
-    __tablename__ = "Player Perks"
+    __tablename__ = "Players Perks"
 
     player_ID = Column(Integer, ForeignKey(Player.ID), primary_key=True)
     perk_ID = Column(Integer, ForeignKey(_Perk.ID), primary_key=True)
-    level = Column(Integer, default=1)
+    level = Column(Integer, default=1, nullable=False)
     players = relationship(Player, backref=Player.__tablename__)
     perks = relationship(_Perk, backref=_Perk.__tablename__)
 
@@ -66,18 +66,17 @@ class PlayerPerk(_Base):
 
 
 class Perk(object):
-    _perks = {}
+    perks = {}
 
-    def __init__(self, basename, unload_callable, start_cost, max_level, 
-                 perk_calculator, cost_calculator, level_up_callable=None, 
-                 verbose_name=None):
+    def __init__(self, basename, max_level, perk_calculator, 
+                 cost_calculator, unload_callable=None, 
+                 level_change_callable=None, verbose_name=None):
         self.basename = basename
-        self.unload_callable = unload_callable
-        self.start_cost = start_cost
         self.max_level = max_level
         self.perk_calculator = perk_calculator
         self.cost_calculator = cost_calculator
-        self.level_up_callable = level_up_callable
+        self.unload_callable = unload_callable
+        self.level_change_callable = level_change_callable
         if verbose_name is None:
             verbose_name = tools.format_verbose_name(basename)
         self.verbose_name = verbose_name
@@ -89,10 +88,8 @@ class Perk(object):
             else:
                 self.record = _Perk(basename, verbose_name)
                 session.add(self.record)
-                session.flush()
-                session.expunge(self.record)
         self.enabled = True
-        self._perks[basename] = self
+        self.perks[basename] = self
 
 
 def player_activate(event_var):
@@ -100,13 +97,13 @@ def player_activate(event_var):
     with SessionWrapper() as session:
         player = session.query(Player).filter(Player.steam_ID == 
                                               steam_ID).first()
+        name = event_var["es_username"]
         if player is None:
-            player = Player(steam_ID, event_var["name"])
+            player = Player(steam_ID, name)
         else:
-            player.name = event_var["name"]
+            player.name = name.decode("UTF-8").encode("latin-1").decode(
+                                                                       "UTF-8")
         session.add(player)
-        session.flush()
-        session.expunge(player)
     Player.players[int(event_var["userid"])] = player
 
 
@@ -118,14 +115,16 @@ def player_changename(event_var):
 
 
 def player_disconnect(event_var):
-    user_ID = int(event_var["user_ID"])
+    user_ID = int(event_var["userid"])
     if user_ID in Player.players:
-        Player.players.remove(user_ID)
+        del Player.players[user_ID]
 
 
 def unload():
-    for Perk in Perk._perks:
-        Perk.unload_callable()
+    for perk in Perk.perks.itervalues():
+        if perk.unload_callable() is not None:
+            perk.unload_callable()
+        perk.enabled = False
 
 
 _engine = create_engine("sqlite:///%s" % os.path.join(
@@ -134,7 +133,7 @@ _Base.metadata.create_all(_engine)
 
 
 class SessionWrapper(object):
-    _Session = sessionmaker(bind=_engine)
+    _Session = sessionmaker(bind=_engine, expire_on_commit=False)
 
     def __enter__(self):
         self.session = self._Session()
@@ -147,12 +146,19 @@ class SessionWrapper(object):
 
 
 def _rpg_menu_callback(user_ID, (player, perk, player_perk, level, cost)):
-    player.credits -= cost
-    player_perk.level += 1
     with SessionWrapper() as session:
-        session.add(player)
-    if perk.level_up_callable is not None:
-        perk.level_up_callable(user_ID, level)
+        player.credits -= cost
+        if player_perk is None:
+            old_level = 0
+            player_perk = PlayerPerk(player.ID, perk.record.ID)
+            session.add(player_perk)
+        else:
+            old_level = player_perk.level
+            player_perk.level += 1
+        session.add_all((player, player_perk))
+    if perk.level_change_callable is not None:
+        perk.level_change_callable(user_ID, player, player_perk, old_level, 
+                                   player_perk.level)
     _rpg_menu.send(user_ID)
 
 
@@ -166,8 +172,8 @@ def _get_items(user_ID):
     with SessionWrapper() as session:
         perk_records = session.query(_Perk).order_by(_Perk.verbose_name).all()
         for perk_record in perk_records:
-            perk = Perk._perks[perk_record.basename]
-            if perk_record.basename not in Perk._perks or not perk.enabled:
+            perk = Perk.perks.get(perk_record.basename)
+            if perk is None or not perk.enabled:
                 items.append(menus.MenuOption("%s -> [DISABLED]" % 
                                    perk_record.verbose_name, selectable=False))
             else:
@@ -175,22 +181,20 @@ def _get_items(user_ID):
                                 PlayerPerk.player_ID == player.ID, 
                                 PlayerPerk.perk_ID == perk_record.ID).first()
                 if player_perk is None:
-                    player_perk = PlayerPerk(player.ID, perk_record.ID)
-                    session.add(player_perk)
-                    session.flush()
-                    session.expunge(player_perk)
-                if player_perk.level >= perk.max_level:
-                    items.append(menus.MenuOption("%s -> %s [MAXED]" %(
-                                 perk_record.verbose_name, player_perk.level), 
-                                 selectable=False))
+                    next_level = 1
                 else:
-                    level = max(player_perk.level, 0) + 1
-                    cost = perk.cost_calculator(level)
-                    selectable = cost <= player.credits
-                    items.append(menus.MenuOption("%s -> %s [%s Credits]" %(
-                                 perk_record.verbose_name, level, cost), 
-                                 (player, perk, player_perk, level, cost), 
-                                 selectable))
+                    if player_perk.level >= perk.max_level:
+                        items.append(menus.MenuOption("%s -> %s [MAXED]" %(
+                                     perk_record.verbose_name, 
+                                     player_perk.level), selectable=False))
+                        continue
+                    next_level = player_perk.level + 1
+                cost = perk.cost_calculator(next_level)
+                selectable = cost <= player.credits
+                items.append(menus.MenuOption("%s -> %s [%s Credits]" %(
+                             perk_record.verbose_name, next_level, cost), 
+                             (player, perk, player_perk, next_level, cost), 
+                             selectable))
     return items
 
 
