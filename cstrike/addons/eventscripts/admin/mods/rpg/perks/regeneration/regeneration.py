@@ -4,18 +4,26 @@
 
 from __future__ import with_statement
 
-import es
 from esutils import delays, players
 from rpg import rpg
 
 _delays = {}
 
 
+def _action_regeneration(user_ID, player_record, player_perk, old_level=None, 
+                         new_level=None):
+    if old_level is None or old_level == 0 and user_ID not in _delays:
+        delay = _delays[user_ID] = delays.Delay(_regenerate_health, user_ID, 
+                                                    player_record, player_perk)
+        delay.start(5, True)
+
+
 def player_death(event_var):
-    user_ID = int(event_var["userid"])
-    if user_ID in _delays:
-        delay = _delays.pop(user_ID)
-        delay.stop()
+    _stop_delay(int(event_var["userid"]))
+
+
+def player_disconnect(event_var):
+    _stop_delay(int(event_var["userid"]))
 
 
 def player_spawn(event_var):
@@ -60,15 +68,13 @@ def _reset_health():
     for player in players.all_players():
         if player.health > 100:
             player.health = 100
+    _delays.clear()
 
 
-def _action_regeneration(user_ID, player_record, player_perk, old_level=None, 
-                         new_level=None):
-    if (old_level is None or old_level == 0) and user_ID not in _delays:
-        delay = delays.Delay(_regenerate_health, user_ID, player_record, 
-                             player_perk)
-        delay.start(5, True)
-        _delays[user_ID] = delay
+def _stop_delay(user_ID):
+    if user_ID in _delays:
+        delay = _delays.pop(user_ID)
+        delay.stop()
 
 
 _regeneration = rpg.Perk("regeneration" 5, lambda x: x, 
