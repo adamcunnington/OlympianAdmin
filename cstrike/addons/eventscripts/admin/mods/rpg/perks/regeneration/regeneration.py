@@ -12,7 +12,11 @@ _delays = {}
 
 def _action_regeneration(user_ID, player_record, player_perk, old_level=None, 
                          new_level=None):
-    if old_level is None or old_level == 0 and user_ID not in _delays:
+    if new_level == 0:
+        delay = _delays.get(user_ID)
+        if delay is not None:
+            delay.stop()
+    elif not old_level and user_ID not in _delays:
         delay = _delays[user_ID] = delays.Delay(_regenerate_health, user_ID, 
                                                     player_record, player_perk)
         delay.start(5, True)

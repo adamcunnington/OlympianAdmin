@@ -43,6 +43,13 @@ def _remove_effects(player):
     player.colour = (255, 255, 255, 255)
 
 
+def _reset_effects():
+    all_players = players.all_players()
+    for player in all_players.filter(~all_players.dead):
+        _remove_effects(player)
+    _delays.clear()
+
+
 def _stop_delay(user_ID):
     if user_ID in _delays:
         delay = _delays.pop(user_ID)
@@ -50,4 +57,4 @@ def _stop_delay(user_ID):
 
 
 _adrenaline = rpg.Perk("adrenaline", 5, lambda x: 1 + (x * 0.2), 
-                       lambda x: x * 25, _delays.clear())
+                       lambda x: x * 25, _reset_effects())
