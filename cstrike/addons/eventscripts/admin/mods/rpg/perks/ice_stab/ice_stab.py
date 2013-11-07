@@ -1,5 +1,5 @@
 # <path to game directory>/addons/eventscipts/admin/mods/rpg/perks/
-# long_jump/freeze_stab.py
+# long_jump/ice_stab.py
 # by Adam Cunnington
 
 from __future__ import with_statement
