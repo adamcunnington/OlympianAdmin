@@ -9,7 +9,7 @@ from rpg import rpg
 
 
 def _level_change(user_ID, player, player_perk, old_level, new_level):
-    if new_level = 0:
+    if new_level == 0:
         new_max_health = 100
     else:
         new_max_health = _health.perk_calculator(new_level)
@@ -27,7 +27,7 @@ def player_spawn(event_var):
         player_perk = session.query(rpg.PlayerPerk).filter(
             rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID, 
             rpg.PlayerPerk.perk_ID == _health.record.ID).first()
-    if player_perk is None:
+    if player_perk is None or player_perk.level == 0:
         return
     player.health = _health.perk_calculator(player_perk.level)
 

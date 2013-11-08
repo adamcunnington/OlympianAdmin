@@ -32,7 +32,7 @@ class Player(_Base):
     name = Column(Unicode, nullable=False)
     experience_points = Column(Integer, default=0, nullable=False)
     level = Column(Integer, default=0, nullable=False)
-    credits = Column(Integer, default=1500, nullable=False)
+    credits = Column(Integer, default=10000, nullable=False)
 
     def __init__(self, steam_ID, name):
         self.steam_ID = steam_ID
@@ -110,9 +110,10 @@ def load():
         _add_player(player.user_ID, player.steam_ID, player.name)
 
 
-def player_activate(event_var):
-    _add_player(int(event_var["userid"]), event_var["es_steamid"], 
-                event_var["es_username"])
+def player_connect(event_var):
+    # TO DO: Update Bot Perks with Median Values
+    _add_player(int(event_var["userid"]), event_var["networkid"], 
+                event_var["name"])
 
 
 def player_changename(event_var):
