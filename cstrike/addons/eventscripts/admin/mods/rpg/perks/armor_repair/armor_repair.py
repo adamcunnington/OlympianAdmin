@@ -11,9 +11,10 @@ _delays = {}
 
 
 def _level_change(user_ID, player_record, player_perk, old_level, new_level):
-    if new_level == 0 and user_ID in _delays:
-        delay = _delays.pop(user_ID)
-        delay.stop()
+    if new_level == 0:
+        if user_ID in _delays:
+            delay = _delays.pop(user_ID)
+            delay.stop()
         return
     if user_ID not in _delays:
         delay = _delays[user_ID] = delays.Delay(_repair_armor, 
