@@ -9,7 +9,10 @@ from rpg import rpg
 
 
 def _level_change(user_ID, player, player_perk, old_level, new_level):
-    new_max_health = _health.perk_calculator(new_level)
+    if new_level = 0:
+        new_max_health = 100
+    else:
+        new_max_health = _health.perk_calculator(new_level)
     player = players.Player(user_ID)
     if player.health > new_max_health:
         player.health = new_max_health
