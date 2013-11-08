@@ -92,19 +92,27 @@ class Perk(object):
         self.perks[basename] = self
 
 
-def player_activate(event_var):
-    steam_ID = event_var["es_steamid"]
+def _add_player(user_ID, steam_ID, name):
     with SessionWrapper() as session:
         player = session.query(Player).filter(Player.steam_ID == 
                                               steam_ID).first()
-        name = event_var["es_username"]
         if player is None:
             player = Player(steam_ID, name)
         else:
             player.name = name.decode("UTF-8").encode("latin-1").decode(
                                                                        "UTF-8")
         session.add(player)
-    Player.players[int(event_var["userid"])] = player
+    Player.players[user_ID] = player
+
+
+def load():
+    for player in players.all_players():
+        _add_player(player.user_ID, player.steam_ID, player.name)
+
+
+def player_activate(event_var):
+    _add_player(int(event_var["userid"]), event_var["es_steamid"], 
+                event_var["es_username"])
 
 
 def player_changename(event_var):
