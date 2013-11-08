@@ -22,11 +22,15 @@ def _level_change(user_ID, player_record, player_perk, old_level, new_level):
 
 
 def player_death(event_var):
-    _stop_perk(int(event_var["userid"]))
+    user_ID = int(event_var["userid"])
+    if user_ID in _delays:
+        _stop_perk(user_ID)
 
 
 def player_disconnect(event_var):
-    _stop_perk(int(event_var["userid"]))
+    user_ID = int(event_var["userid"])
+    if user_ID in _delays:
+        _stop_perk(user_ID)
 
 
 def player_spawn(event_var):
@@ -56,15 +60,13 @@ def _repair_armor(user_ID, player_perk):
 
 
 def _stop_perk(user_ID):
-    if user_ID in _delays:
-        delay = _delays.pop(user_ID)
-        delay.stop()
+    delay = _delays.pop(user_ID)
+    delay.stop()
 
 
 def _unload():
-    while _delays:
-        user_ID, delay = _delays.popitem()
-        delay.stop()
+    for user_ID in _delays[:]:
+        _stop_perk(user_ID)
 
 
 armor_repair = rpg.Perk("armor_repair" 5, lambda x: x, lambda x: 5 * 2**(x-1), 

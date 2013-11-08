@@ -11,12 +11,15 @@ _delays = {}
 
 
 def player_death(event_var):
-
-    _stop_perk(int(event_var["userid"]))
+    user_ID = int(event_var["userid"])
+    if user_ID in _delays:
+        _stop_perk(user_ID)
 
 
 def player_disconnect(event_var):
-    _stop_perk(int(event_var["userid"]))
+    user_ID = int(event_var["userid"])
+    if user_ID in _delays:
+        _stop_perk(user_ID)
 
 
 def player_hurt(event_var):
@@ -43,19 +46,14 @@ def _remove_effects(player):
 
 
 def _stop_perk(user_ID):
-    if user_ID in _delays:
-        delay = _delays.pop(user_ID)
-        delay.stop()
+    delay = _delays.pop(user_ID)
+    delay.stop()
     _remove_effects(players.Player(user_ID)
 
 
 def _unload():
-    all_players = players.all_players()
-    for player in all_players.filter(~all_players.dead):
-        _stop_perk(player.user_ID)
-    while _delays:
-        user_ID, delay = _delays.popitem()
-        delay.stop()
+    for user_ID in _delays[:]:
+        _stop_perk(user_ID)
 
 
 _adrenaline = rpg.Perk("adrenaline", 5, lambda x: 1 + (x * 0.2), 
