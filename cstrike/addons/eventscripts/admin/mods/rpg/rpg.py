@@ -3,7 +3,6 @@
 # by Adam Cunnington
 
 from __future__ import with_statement
-import itertools
 import os
 
 from sqlalchemy import (Column, create_engine, event, ForeignKey, Integer, 
@@ -168,7 +167,8 @@ def player_disconnect(event_var):
 
 
 def player_say(event_var):
-    _rpg_menu.send(int(event_var["userid"]))
+    if event_var["text"] == "rpgmenu":
+        _rpg_menu.send(int(event_var["userid"]))
 
 
 def _rpg_menu_callback(user_ID, (player, perk, player_perk, level, cost)):

@@ -23,17 +23,16 @@ def player_spawn(event_var):
                                                players.COUNTER_TERRORIST):
         return
     with rpg.SessionWrapper() as session:
-        player_perk = session.query(rpg.PlayerPerk).filter(
+        stealth_level = session.query(rpg.PlayerPerk.level).filter(
                 rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID, 
-                rpg.PlayerPerk.perk_ID == _stealth.record.ID).first()
-    if player_perk is None or player_perk.level == 0:
+                rpg.PlayerPerk.perk_ID == _stealth.record.ID).scalar()
+    if not stealth_level:
         return
-    _set_colour(player, player_perk.level)
+    _set_colour(player, stealth_level)
 
 
 def _set_colour(player, level):
-    player.colour = (255, 255, 255, 
-                     int(255 * (1 - _stealth.perk_calculator(level))))
+    player.colour = (255, 255, 255, _stealth.perk_calculator(level))
 
 
 def _unload():
@@ -41,5 +40,5 @@ def _unload():
         player.colour = (255, 255, 255, 255)
 
 
-_stealth = rpg.Perk("stealth", 5, lambda x: x * 0.1, lambda x: x * 30, 
-                    _unload, _level_change)
+_stealth = rpg.Perk("stealth", 5, lambda x: int(255 * (1 - x*0.1)), 
+                    lambda x: x * 30, _unload, _level_change)

@@ -14,10 +14,10 @@ def player_hurt(event_var):
         return
     player_record = rpg.Player.players[attacker]
     with rpg.SessionWrapper() as session:
-        player_perk = session.query(rpg.PlayerPerk).filter(
+        vampire_level = session.query(rpg.PlayerPerk.level).filter(
                         rpg.PlayerPerk.player_ID == player_record.ID, 
-                        rpg.PlayerPerk.perk_ID == _vampire.record.ID).first()
-    if player_perk is None or player_perk.level == 0:
+                        rpg.PlayerPerk.perk_ID == _vampire.record.ID).scalar()
+    if not vampire_level:
         return
     health_perk = rpg.Perk.perks.get("health")
     if health_perk is None or not health_perk.enabled:
@@ -32,7 +32,7 @@ def player_hurt(event_var):
         else:
             max_health = health_perk.perk_calculator(health_level)
     health_bonus = int(event_var[
-            "dmg_health"]) * _vampire.perk_calculator(player_perk.level)
+            "dmg_health"]) * _vampire.perk_calculator(vampire_level)
     player = players.Player(attacker)
     if max_health - int(event_var["es_attackerhealth"]) <= health_bonus:
        player.health = max_health

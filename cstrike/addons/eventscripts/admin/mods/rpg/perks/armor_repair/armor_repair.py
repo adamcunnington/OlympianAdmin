@@ -44,11 +44,10 @@ def player_spawn(event_var):
         return
     with rpg.SessionWrapper() as session:
         player_ID = rpg.Player.players[user_ID].ID
-        player_perk = session.query(rpg.PlayerPerk).filter(
-                    rpg.PlayerPerk.player_ID == player_ID, 
-                    rpg.PlayerPerk.perk_ID == _armor_repair.record.ID).first()
-    if player_perk is None or player_perk.level == 0:
-        return
+        if not session.query(rpg.PlayerPerk.level).filter(
+                rpg.PlayerPerk.player_ID == player_ID, 
+                rpg.PlayerPerk.perk_ID == _armor_repair.record.ID).scalar():
+            return
     delay = _delays.get(user_ID)
     if delay is None:
         delay = _delays[user_ID] = delays.Delay(_repair_armor, user_ID, 

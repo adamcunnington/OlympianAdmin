@@ -24,12 +24,12 @@ def player_spawn(event_var):
     if player.team_ID not in (players.TERRORIST, players.COUNTER_TERRORIST):
         return
     with rpg.SessionWrapper() as session:
-        player_perk = session.query(rpg.PlayerPerk).filter(
+        health_level = session.query(rpg.PlayerPerk.level).filter(
                 rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID, 
-                rpg.PlayerPerk.perk_ID == _health.record.ID).first()
-    if player_perk is None or player_perk.level == 0:
+                rpg.PlayerPerk.perk_ID == _health.record.ID).scalar()
+    if not health_level:
         return
-    player.health = _health.perk_calculator(player_perk.level)
+    player.health = _health.perk_calculator(health_level)
 
 
 def _unload():
