@@ -12,7 +12,7 @@ def player_jump(event_var):
     user_ID = int(event_var["userid"])
     with rpg.SessionWrapper() as session:
         long_jump_level = session.query(rpg.PlayerPerk.level).filter(
-                rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID, 
+                rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID,
                 rpg.PlayerPerk.perk_ID == _long_jump.record.ID).scalar()
     if not long_jump_level:
         return

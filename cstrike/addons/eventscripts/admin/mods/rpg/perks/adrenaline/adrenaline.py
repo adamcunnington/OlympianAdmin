@@ -37,12 +37,12 @@ def player_disconnect(event_var):
 
 def player_hurt(event_var):
     user_ID = int(event_var["userid"])
-    if (int(event_var["attacker"]) == players.WORLD or 
+    if (int(event_var["attacker"]) == players.WORLD or
         int(event_var["hitgroup"]) != 1):
         return
     with rpg.SessionWrapper() as session:
         adrenaline_level = session.query(rpg.PlayerPerk.level).filter(
-                rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID, 
+                rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID,
                 rpg.PlayerPerk.perk_ID == _adrenaline.record.ID).scalar()
     if not adrenaline_level:
         return
@@ -68,7 +68,7 @@ def _remove_effects(user_ID):
     else:
         with rpg.SessionWrapper() as session:
             stealth_level = session.query(rpg.PlayerPerk.level).filter(
-                rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID, 
+                rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID,
                 rpg.PlayerPerk.perk_ID == stealth_perk.record.ID).scalar()
         if not stealth_level:
             max_alpha = 255
@@ -84,5 +84,5 @@ def _unload():
         _remove_effects(user_ID)
 
 
-_adrenaline = rpg.Perk("adrenaline", 5, lambda x: 1 + (x * 0.2), 
+_adrenaline = rpg.Perk("adrenaline", 5, lambda x: 1 + (x * 0.2),
                        lambda x: x * 25, _unload, _level_change)

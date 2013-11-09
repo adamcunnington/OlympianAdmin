@@ -39,13 +39,13 @@ def player_disconnect(event_var):
 def player_hurt(event_var):
     user_ID = int(event_var["userid"])
     attacker = int(event_var["attacker"])
-    if (attacker == players.WORLD or 
-        list(weapons.weapon_types_by_names(event_var["weapon"]))[0].CATEGORY 
+    if (attacker == players.WORLD or
+        list(weapons.weapon_types_by_names(event_var["weapon"]))[0].CATEGORY
         != weapons.CATEGORY_MELEE):
         return
     with rpg.SessionWrapper() as session:
         ice_stab_level = session.query(rpg.PlayerPerk.level).filter(
-                rpg.PlayerPerk.player_ID == rpg.Player.players[attacker].ID, 
+                rpg.PlayerPerk.player_ID == rpg.Player.players[attacker].ID,
                 rpg.PlayerPerk.perk_ID == _freeze_stab.record.ID).scalar()
     if not ice_stab_level:
         return
@@ -71,7 +71,7 @@ def _remove_effects(user_ID):
     else:
         with rpg.SessionWrapper() as session:
             stealth_level = session.query(rpg.PlayerPerk.level).filter(
-                rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID, 
+                rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID,
                 rpg.PlayerPerk.perk_ID == stealth_perk.record.ID).scalar()
         if not stealth_level:
             max_alpha = 255
@@ -87,5 +87,5 @@ def _unload():
         _remove_effects(user_ID)
 
 
-_freeze_stab = rpg.Perk("freeze_stab", 5, lambda x: 1 - x*0.1, 
+_freeze_stab = rpg.Perk("freeze_stab", 5, lambda x: 1 - x*0.1,
                         lambda x: x * 30, _unload, _level_change)

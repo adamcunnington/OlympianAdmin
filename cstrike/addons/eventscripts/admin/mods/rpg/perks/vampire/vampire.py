@@ -15,7 +15,7 @@ def player_hurt(event_var):
     player_record = rpg.Player.players[attacker]
     with rpg.SessionWrapper() as session:
         vampire_level = session.query(rpg.PlayerPerk.level).filter(
-                        rpg.PlayerPerk.player_ID == player_record.ID, 
+                        rpg.PlayerPerk.player_ID == player_record.ID,
                         rpg.PlayerPerk.perk_ID == _vampire.record.ID).scalar()
     if not vampire_level:
         return
@@ -25,7 +25,7 @@ def player_hurt(event_var):
     else:
         with rpg.SessionWrapper() as session:
             health_level = session.query(rpg.PlayerPerk.level).filter(
-                    rpg.PlayerPerk.player_ID == player_record.ID, 
+                    rpg.PlayerPerk.player_ID == player_record.ID,
                     rpg.PlayerPerk.perk_ID == health_perk.record.ID).scalar()
         if not health_level:
             max_health = 100

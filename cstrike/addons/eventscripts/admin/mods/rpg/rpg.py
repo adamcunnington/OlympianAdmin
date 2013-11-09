@@ -5,7 +5,7 @@
 from __future__ import with_statement
 import os
 
-from sqlalchemy import (Column, create_engine, event, ForeignKey, Integer, 
+from sqlalchemy import (Column, create_engine, event, ForeignKey, Integer,
                         String, Unicode)
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
@@ -13,11 +13,11 @@ from sqlalchemy.ext.declarative import declarative_base
 from esutils import menus, players, tools
 
 
-__all__ = ( 
-    "Player", 
-    "PlayerPerk", 
-    "Perk", 
-    "SessionWrapper", 
+__all__ = (
+    "Player",
+    "PlayerPerk",
+    "Perk",
+    "SessionWrapper",
     )
 
 _Base = declarative_base()
@@ -69,8 +69,8 @@ class PlayerPerk(_Base):
 class Perk(object):
     perks = {}
 
-    def __init__(self, basename, max_level, perk_calculator, 
-                 cost_calculator, unload_callable=None, 
+    def __init__(self, basename, max_level, perk_calculator,
+                 cost_calculator, unload_callable=None,
                  level_change_callable=None, verbose_name=None):
         self.basename = basename
         self.max_level = max_level
@@ -82,7 +82,7 @@ class Perk(object):
             verbose_name = tools.format_verbose_name(basename)
         self.verbose_name = verbose_name
         with SessionWrapper() as session:
-            record = session.query(_Perk).filter(_Perk.basename == 
+            record = session.query(_Perk).filter(_Perk.basename ==
                                                   basename).first()
             if record is not None:
                 self.record = record
@@ -95,7 +95,7 @@ class Perk(object):
 
 def _add_player(user_ID, steam_ID, name):
     with _PlayerSessionWrapper() as session:
-        player = session.query(Player).filter(Player.steam_ID == 
+        player = session.query(Player).filter(Player.steam_ID ==
                                               steam_ID).first()
         if player is None:
             player = Player(user_ID, steam_ID, name)
@@ -118,26 +118,26 @@ def _get_items(user_ID):
         for perk_record in perk_records:
             perk = Perk.perks.get(perk_record.basename)
             if perk is None or not perk.enabled:
-                items.append(menus.MenuOption("%s -> [DISABLED]" % 
+                items.append(menus.MenuOption("%s -> [DISABLED]" %
                                    perk_record.verbose_name, selectable=False))
             else:
                 player_perk = session.query(PlayerPerk).filter(
-                                PlayerPerk.player_ID == player.ID, 
+                                PlayerPerk.player_ID == player.ID,
                                 PlayerPerk.perk_ID == perk_record.ID).first()
                 if player_perk is None:
                     next_level = 1
                 else:
                     if player_perk.level >= perk.max_level:
                         items.append(menus.MenuOption("%s -> %s [MAXED]" %(
-                                     perk_record.verbose_name, 
+                                     perk_record.verbose_name,
                                      player_perk.level), selectable=False))
                         continue
                     next_level = player_perk.level + 1
                 cost = perk.cost_calculator(next_level)
                 selectable = cost <= player.credits
                 items.append(menus.MenuOption("%s -> %s [%s Credits]" %(
-                             perk_record.verbose_name, next_level, cost), 
-                             (player, perk, player_perk, next_level, cost), 
+                             perk_record.verbose_name, next_level, cost),
+                             (player, perk, player_perk, next_level, cost),
                              selectable))
     return items
 
@@ -149,13 +149,13 @@ def load():
 
 def player_connect(event_var):
     # TO DO: Update Bot Perks with Median Values
-    _add_player(int(event_var["userid"]), event_var["networkid"], 
+    _add_player(int(event_var["userid"]), event_var["networkid"],
                 event_var["name"])
 
 
 def player_changename(event_var):
     with SessionWrapper() as session:
-        player = session.query(Player).filter(Player.steam_ID == 
+        player = session.query(Player).filter(Player.steam_ID ==
                                               event_var["es_steamid"]).first()
         player.name = event_var["newname"]
 
@@ -185,11 +185,11 @@ def _rpg_menu_callback(user_ID, (player, perk, player_perk, level, cost)):
         session.add(player_perk)
     Player.players[user_ID] = player
     if perk.level_change_callable is not None:
-        perk.level_change_callable(user_ID, player, player_perk, old_level, 
+        perk.level_change_callable(user_ID, player, player_perk, old_level,
                                    player_perk.level)
 
 
-_rpg_menu = menus.Menu(_rpg_menu_callback, get_description=_get_description, 
+_rpg_menu = menus.Menu(_rpg_menu_callback, get_description=_get_description,
                        get_items=_get_items, resend=True)
 _rpg_menu.title = "OLYMPIAN# RPG"
 

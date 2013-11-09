@@ -17,14 +17,14 @@ def _level_change(user_ID, player_record, player_perk, old_level, new_level):
             if delay.running:
                 delay.stop()
     elif old_level == 0:
-        delay = _delays[user_ID] = delays.Delay(_replenish_clip, 
+        delay = _delays[user_ID] = delays.Delay(_replenish_clip,
                                                 players.Player(user_ID))
         if not players.Player(user_ID).dead:
             delay.start(_clip_replenish.perk_calculator(new_level), True)
     else:
         delay = _delays.get(user_ID)
         if delay is None:
-            delay = _delays[user_ID] = delays.Delay(_replenish_clip, 
+            delay = _delays[user_ID] = delays.Delay(_replenish_clip,
                                                 players.Player(user_ID))
             if not players.Player(user_ID).dead:
                 delay.start(_clip_replenish.perk_calculator(new_level), True)
@@ -53,17 +53,17 @@ def player_spawn(event_var):
     with rpg.SessionWrapper() as session:
         player_ID = rpg.Player.players[user_ID].ID
         clip_replenish_level = session.query(rpg.PlayerPerk.level).filter(
-                rpg.PlayerPerk.player_ID == player_ID, 
+                rpg.PlayerPerk.player_ID == player_ID,
                 rpg.PlayerPerk.perk_ID == _clip_replenish.record.ID).scalar()
     if not clip_replenish_level:
         return
     delay = _delays.get(user_ID)
     if delay is None:
         delay = _delays[user_ID] = delays.Delay(_replenish_clip, player)
-        delay.start(_clip_replenish.perk_calculator(clip_replenish_level), 
+        delay.start(_clip_replenish.perk_calculator(clip_replenish_level),
                     True)
     elif not delay.running:
-        delay.start(_clip_replenish.perk_calculator(clip_replenish_level), 
+        delay.start(_clip_replenish.perk_calculator(clip_replenish_level),
                     True)
 
 
@@ -88,5 +88,5 @@ def _unload():
         delay.stop()
 
 
-_clip_replenish = rpg.Perk("clip_replenish_clip", 5, lambda x: 5 * (6-x), 
+_clip_replenish = rpg.Perk("clip_replenish_clip", 5, lambda x: 5 * (6-x),
                            lambda x: 5 * 2**(x-1), _unload, _level_change)

@@ -18,7 +18,7 @@ def _level_change(user_ID, player_record, player_perk, old_level, new_level):
                 delay.stop()
         return
     if old_level == 0:
-        delay = _delays[user_ID] = delays.Delay(_repair_armor, user_ID, 
+        delay = _delays[user_ID] = delays.Delay(_repair_armor, user_ID,
                                                 rpg.Player.players[user_ID].ID)
         if not players.Player(user_ID).dead:
             delay.start(5, True)
@@ -39,18 +39,18 @@ def player_disconnect(event_var):
 
 def player_spawn(event_var):
     user_ID = int(event_var["userid"])
-    if players.Player(user_ID).team_ID not in (players.TERRORIST, 
+    if players.Player(user_ID).team_ID not in (players.TERRORIST,
                                                players.COUNTER_TERRORIST):
         return
     with rpg.SessionWrapper() as session:
         player_ID = rpg.Player.players[user_ID].ID
         if not session.query(rpg.PlayerPerk.level).filter(
-                rpg.PlayerPerk.player_ID == player_ID, 
+                rpg.PlayerPerk.player_ID == player_ID,
                 rpg.PlayerPerk.perk_ID == _armor_repair.record.ID).scalar():
             return
     delay = _delays.get(user_ID)
     if delay is None:
-        delay = _delays[user_ID] = delays.Delay(_repair_armor, user_ID, 
+        delay = _delays[user_ID] = delays.Delay(_repair_armor, user_ID,
                                                 player_ID)
         delay.start(5, True)
     elif not delay.running:
@@ -63,7 +63,7 @@ def _repair_armor(user_ID, player_ID):
         return
     with rpg.SessionWrapper() as session:
         armor_repair_level = session.query(rpg.PlayerPerk.level).filter(
-                    rpg.PlayerPerk.player_ID == player_ID, 
+                    rpg.PlayerPerk.player_ID == player_ID,
                     rpg.PlayerPerk.perk_ID == _armor_repair.record.ID).scalar()
     armor_bonus = _armor_repair.perk_calculator(armor_repair_level)
     if 100 - player.armor < armor_bonus:
@@ -78,5 +78,5 @@ def _unload():
         delay.stop()
 
 
-_armor_repair = rpg.Perk("armor_repair", 5, lambda x: x, 
+_armor_repair = rpg.Perk("armor_repair", 5, lambda x: x,
                          lambda x: 5 * 2**(x-1), _unload, _level_change)

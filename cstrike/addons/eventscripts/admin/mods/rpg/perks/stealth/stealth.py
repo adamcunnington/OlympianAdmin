@@ -19,12 +19,12 @@ def _level_change(user_ID, player, player_perk, old_level, new_level):
 def player_spawn(event_var):
     user_ID = int(event_var["userid"])
     player = players.Player(user_ID)
-    if players.Player(user_ID).team_ID not in (players.TERRORIST, 
+    if players.Player(user_ID).team_ID not in (players.TERRORIST,
                                                players.COUNTER_TERRORIST):
         return
     with rpg.SessionWrapper() as session:
         stealth_level = session.query(rpg.PlayerPerk.level).filter(
-                rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID, 
+                rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID,
                 rpg.PlayerPerk.perk_ID == _stealth.record.ID).scalar()
     if not stealth_level:
         return
@@ -40,5 +40,5 @@ def _unload():
         player.colour = (255, 255, 255, 255)
 
 
-_stealth = rpg.Perk("stealth", 5, lambda x: int(255 * (1 - x*0.1)), 
+_stealth = rpg.Perk("stealth", 5, lambda x: int(255 * (1 - x*0.1)),
                     lambda x: x * 30, _unload, _level_change)

@@ -17,14 +17,14 @@ def _level_change(user_ID, player_record, player_perk, old_level, new_level):
             if delay.running:
                 delay.stop()
     elif old_level == 0:
-        delay = _delays[user_ID] = delays.Delay(_replenish_ammo, 
+        delay = _delays[user_ID] = delays.Delay(_replenish_ammo,
                                                 players.Player(user_ID))
         if not players.Player(user_ID).dead:
             delay.start(_ammo_replenish.perk_calculator(new_level), True)
     else:
         delay = _delays.get(user_ID)
         if delay is None:
-            delay = _delays[user_ID] = delays.Delay(_replenish_ammo, 
+            delay = _delays[user_ID] = delays.Delay(_replenish_ammo,
                                                 players.Player(user_ID))
             if not players.Player(user_ID).dead:
                 delay.start(_ammo_replenish.perk_calculator(new_level), True)
@@ -53,17 +53,17 @@ def player_spawn(event_var):
     with rpg.SessionWrapper() as session:
         player_ID = rpg.Player.players[user_ID].ID
         ammo_replenish_level = session.query(rpg.PlayerPerk.level).filter(
-                rpg.PlayerPerk.player_ID == player_ID, 
+                rpg.PlayerPerk.player_ID == player_ID,
                 rpg.PlayerPerk.perk_ID == _ammo_replenish.record.ID).scalar()
     if not ammo_replenish_level:
         return
     delay = _delays.get(user_ID)
     if delay is None:
         delay = _delays[user_ID] = delays.Delay(_replenish_ammo, player)
-        delay.start(_ammo_replenish.perk_calculator(ammo_replenish_level), 
+        delay.start(_ammo_replenish.perk_calculator(ammo_replenish_level),
                     True)
     elif not delay.running:
-        delay.start(_ammo_replenish.perk_calculator(ammo_replenish_level), 
+        delay.start(_ammo_replenish.perk_calculator(ammo_replenish_level),
                     True)
 
 
@@ -88,5 +88,5 @@ def _unload():
         delay.stop()
 
 
-_ammo_replenish = rpg.Perk("ammo_replenish_ammo", 5, lambda x: 5 * (7-x), 
+_ammo_replenish = rpg.Perk("ammo_replenish_ammo", 5, lambda x: 5 * (7-x),
                            lambda x: 5 * 2**(x-1), _unload, _level_change)
