@@ -3,10 +3,11 @@
 # by Adam Cunnington
 
 from __future__ import with_statement
+import itertools
 import os
 
-from sqlalchemy import (Column, create_engine, ForeignKey, Integer, String, 
-                        Unicode)
+from sqlalchemy import (Column, create_engine, event, ForeignKey, Integer, 
+                        String, Unicode)
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -34,7 +35,8 @@ class Player(_Base):
     level = Column(Integer, default=0, nullable=False)
     credits = Column(Integer, default=10000, nullable=False)
 
-    def __init__(self, steam_ID, name):
+    def __init__(self, user_ID, steam_ID, name):
+        self._user_ID = user_ID
         self.steam_ID = steam_ID
         self.name = name
 
@@ -93,82 +95,16 @@ class Perk(object):
 
 
 def _add_player(user_ID, steam_ID, name):
-    with SessionWrapper() as session:
+    with _PlayerSessionWrapper() as session:
         player = session.query(Player).filter(Player.steam_ID == 
                                               steam_ID).first()
         if player is None:
-            player = Player(steam_ID, name)
+            player = Player(user_ID, steam_ID, name)
         else:
+            player._user_ID = user_ID
             player.name = name.decode("UTF-8").encode("latin-1").decode(
                                                                        "UTF-8")
         session.add(player)
-    Player.players[user_ID] = player
-
-
-def load():
-    for player in players.all_players():
-        _add_player(player.user_ID, player.steam_ID, player.name)
-
-
-def player_connect(event_var):
-    # TO DO: Update Bot Perks with Median Values
-    _add_player(int(event_var["userid"]), event_var["networkid"], 
-                event_var["name"])
-
-
-def player_changename(event_var):
-    with SessionWrapper() as session:
-        player = session.query(Player).filter(Player.steam_ID == 
-                                              event_var["es_steamid"]).first()
-        player.name = event_var["newname"]
-
-
-def player_disconnect(event_var):
-    user_ID = int(event_var["userid"])
-    if user_ID in Player.players:
-        del Player.players[user_ID]
-
-
-def unload():
-    for perk in Perk.perks.itervalues():
-        if perk.unload_callable() is not None:
-            perk.unload_callable()
-        perk.enabled = False
-
-
-_engine = create_engine("sqlite:///%s" % os.path.join(
-                                    os.path.dirname(__file__), "players.db"))
-_Base.metadata.create_all(_engine)
-
-
-class SessionWrapper(object):
-    _Session = sessionmaker(bind=_engine, expire_on_commit=False)
-
-    def __enter__(self):
-        self.session = self._Session()
-        return self.session
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if exc_value is None:
-            self.session.commit()
-        self.session.close()
-
-
-def _rpg_menu_callback(user_ID, (player, perk, player_perk, level, cost)):
-    with SessionWrapper() as session:
-        player.credits -= cost
-        if player_perk is None:
-            old_level = 0
-            player_perk = PlayerPerk(player.ID, perk.record.ID)
-            session.add(player_perk)
-        else:
-            old_level = player_perk.level
-            player_perk.level += 1
-        session.add_all((player, player_perk))
-    if perk.level_change_callable is not None:
-        perk.level_change_callable(user_ID, player, player_perk, old_level, 
-                                   player_perk.level)
-    _rpg_menu.send(user_ID)
 
 
 def _get_description(user_ID):
@@ -207,10 +143,92 @@ def _get_items(user_ID):
     return items
 
 
-_rpg_menu = menus.Menu(_rpg_menu_callback, get_description=_get_description, 
-                       get_items=_get_items)
-_rpg_menu.title = "OLYMPIAN# RPG"
+def load():
+    for player in players.all_players():
+        _add_player(player.user_ID, player.steam_ID, player.name)
+
+
+def player_connect(event_var):
+    # TO DO: Update Bot Perks with Median Values
+    _add_player(int(event_var["userid"]), event_var["networkid"], 
+                event_var["name"])
+
+
+def player_changename(event_var):
+    with SessionWrapper() as session:
+        player = session.query(Player).filter(Player.steam_ID == 
+                                              event_var["es_steamid"]).first()
+        player.name = event_var["newname"]
+
+
+def player_disconnect(event_var):
+    user_ID = int(event_var["userid"])
+    if user_ID in Player.players:
+        del Player.players[user_ID]
 
 
 def player_say(event_var):
     _rpg_menu.send(int(event_var["userid"]))
+
+
+def _rpg_menu_callback(user_ID, (player, perk, player_perk, level, cost)):
+    with _PlayerSessionWrapper() as session:
+        session.add(player)
+        player.credits -= cost
+    with SessionWrapper() as session:
+        if player_perk is None:
+            old_level = 0
+            player_perk = PlayerPerk(player.ID, perk.record.ID)
+        else:
+            old_level = player_perk.level
+            player_perk.level += 1
+        session.add(player_perk)
+    Player.players[user_ID] = player
+    if perk.level_change_callable is not None:
+        perk.level_change_callable(user_ID, player, player_perk, old_level, 
+                                   player_perk.level)
+
+
+_rpg_menu = menus.Menu(_rpg_menu_callback, get_description=_get_description, 
+                       get_items=_get_items, resend=True)
+_rpg_menu.title = "OLYMPIAN# RPG"
+
+
+def unload():
+    while Perk.perks:
+        basename, perk = Perk.perks.popitem()
+        if perk.unload_callable is not None:
+            perk.unload_callable()
+        perk.enabled = False
+
+
+_engine = create_engine("sqlite:///%s" % os.path.join(
+                                    os.path.dirname(__file__), "players.db"))
+_Base.metadata.create_all(_engine)
+
+
+class _PlayerSessionWrapper(object):
+    Session = sessionmaker(bind=_engine, expire_on_commit=False)
+
+    def __enter__(self):
+        self.session = self.Session()
+        return self.session
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:
+            if exc_value is None:
+                self.session.commit()
+        finally:
+            self.session.close()
+
+
+@event.listens_for(_PlayerSessionWrapper.Session, "before_flush")
+def receive_before_flush(session, flush_context, instances):
+    player_object = list(session.new)
+    player_object.extend(session.dirty)
+    player_object = player_object[0]
+    Player.players[player_object._user_ID] = player_object
+
+
+class SessionWrapper(_PlayerSessionWrapper):
+    Session = sessionmaker(bind=_engine, expire_on_commit=False)

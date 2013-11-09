@@ -19,7 +19,8 @@ def _level_change(user_ID, player_record, player_perk, old_level, new_level):
 
 
 def player_death(event_var):
-    delay = _delays.get(int(event_var["userid"]))
+    user_ID = int(event_var["userid"])
+    delay = _delays.get(user_ID)
     if delay is not None:
         if delay.running:
             delay.stop()
@@ -37,12 +38,12 @@ def player_disconnect(event_var):
 def player_hurt(event_var):
     user_ID = int(event_var["userid"])
     if (int(event_var["attacker"]) == players.WORLD or 
-        weapons.transform_weapon_name(event_var["weapon"]) == "weapon_knife"):
+        int(event_var["hitgroup"]) != 1):
         return
     with rpg.SessionWrapper() as session:
         player_perk = session.query(rpg.PlayerPerk).filter(
-            rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID, 
-            rpg.PlayerPerk.perk_ID == _adrenaline.record.ID).first()
+                rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID, 
+                rpg.PlayerPerk.perk_ID == _adrenaline.record.ID).first()
     if player_perk is None or player_perk.level == 0:
         return
     player = players.Player(user_ID)

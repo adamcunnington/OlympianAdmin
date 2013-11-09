@@ -20,7 +20,8 @@ def _level_change(user_ID, player_record, player_perk, old_level, new_level):
 
 
 def player_death(event_var):
-    delay = _delays.get(int(event_var["userid"]))
+    user_ID = int(event_var["userid"])
+    delay = _delays.get(user_ID)
     if delay is not None:
         if delay.running:
             delay.stop()
@@ -43,8 +44,8 @@ def player_hurt(event_var):
         return
     with rpg.SessionWrapper() as session:
         player_perk = session.query(rpg.PlayerPerk).filter(
-            rpg.PlayerPerk.player_ID == rpg.Player.players[attacker].ID, 
-            rpg.PlayerPerk.perk_ID == _freeze_stab.record.ID).first()
+                rpg.PlayerPerk.player_ID == rpg.Player.players[attacker].ID, 
+                rpg.PlayerPerk.perk_ID == _freeze_stab.record.ID).first()
     if player_perk is None or player_perk.level == 0:
         return
     player = players.Player(user_ID)

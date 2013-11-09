@@ -10,13 +10,13 @@ from rpg import rpg
 
 def player_hurt(event_var):
     attacker = int(event_var["attacker"])
-    if attacker = players.WORLD:
+    if attacker == players.WORLD:
         return
     player_record = rpg.Player.players[attacker]
     with rpg.SessionWrapper() as session:
         player_perk = session.query(rpg.PlayerPerk).filter(
-            rpg.PlayerPerk.player_ID == player_record.ID, 
-            rpg.PlayerPerk.perk_ID == _vampire.record.ID).first()
+                        rpg.PlayerPerk.player_ID == player_record.ID, 
+                        rpg.PlayerPerk.perk_ID == _vampire.record.ID).first()
     if player_perk is None or player_perk.level == 0:
         return
     health_perk = rpg.Perk.perks.get("health")
@@ -25,8 +25,8 @@ def player_hurt(event_var):
     else:
         with rpg.SessionWrapper() as session:
             health_level = session.query(rpg.PlayerPerk.level).filter(
-                rpg.PlayerPerk.player_ID == player_record.ID, 
-                rpg.PlayerPerk.perk_ID == health_perk.record.ID).scalar()
+                    rpg.PlayerPerk.player_ID == player_record.ID, 
+                    rpg.PlayerPerk.perk_ID == health_perk.record.ID).scalar()
         if not health_level:
             max_health = 100
         else:

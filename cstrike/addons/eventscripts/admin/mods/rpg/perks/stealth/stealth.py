@@ -24,8 +24,8 @@ def player_spawn(event_var):
         return
     with rpg.SessionWrapper() as session:
         player_perk = session.query(rpg.PlayerPerk).filter(
-            rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID, 
-            rpg.PlayerPerk.perk_ID == _stealth.record.ID).first()
+                rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID, 
+                rpg.PlayerPerk.perk_ID == _stealth.record.ID).first()
     if player_perk is None or player_perk.level == 0:
         return
     _set_colour(player, player_perk.level)

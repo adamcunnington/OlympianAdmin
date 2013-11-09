@@ -25,8 +25,8 @@ def player_spawn(event_var):
         return
     with rpg.SessionWrapper() as session:
         player_perk = session.query(rpg.PlayerPerk).filter(
-            rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID, 
-            rpg.PlayerPerk.perk_ID == _health.record.ID).first()
+                rpg.PlayerPerk.player_ID == rpg.Player.players[user_ID].ID, 
+                rpg.PlayerPerk.perk_ID == _health.record.ID).first()
     if player_perk is None or player_perk.level == 0:
         return
     player.health = _health.perk_calculator(player_perk.level)

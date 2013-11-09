@@ -19,8 +19,8 @@ def _level_change(user_ID, player_record, player_perk, old_level, new_level):
         return
     if old_level == 0:
         delay = _delays[user_ID] = delays.Delay(_repair_armor, user_ID, 
-                                                player_record, player_perk)
-        if not players.Player(user_ID):
+                                                rpg.Player.players[user_ID].ID)
+        if not players.Player(user_ID).dead:
             delay.start(5, True)
 
 
@@ -43,26 +43,30 @@ def player_spawn(event_var):
                                                players.COUNTER_TERRORIST):
         return
     with rpg.SessionWrapper() as session:
-        player_record = rpg.Player.players[user_ID]
+        player_ID = rpg.Player.players[user_ID].ID
         player_perk = session.query(rpg.PlayerPerk).filter(
-            rpg.PlayerPerk.player_ID == player_record.ID, 
-            rpg.PlayerPerk.perk_ID == _armor_repair.record.ID).first()
+                    rpg.PlayerPerk.player_ID == player_ID, 
+                    rpg.PlayerPerk.perk_ID == _armor_repair.record.ID).first()
     if player_perk is None or player_perk.level == 0:
         return
     delay = _delays.get(user_ID)
     if delay is None:
         delay = _delays[user_ID] = delays.Delay(_repair_armor, user_ID, 
-                                                player_record, player_perk)
+                                                player_ID)
         delay.start(5, True)
     elif not delay.running:
         delay.start(5, True)
 
 
-def _repair_armor(user_ID, player_record, player_perk):
+def _repair_armor(user_ID, player_ID):
     player = players.Player(user_ID)
     if player.armor >= 100:
         return
-    armor_bonus = _armor_repair.perk_calculator(player_perk.level)
+    with rpg.SessionWrapper() as session:
+        armor_repair_level = session.query(rpg.PlayerPerk.level).filter(
+                    rpg.PlayerPerk.player_ID == player_ID, 
+                    rpg.PlayerPerk.perk_ID == _armor_repair.record.ID).scalar()
+    armor_bonus = _armor_repair.perk_calculator(armor_repair_level)
     if 100 - player.armor < armor_bonus:
         player.armor = 100
     else:
