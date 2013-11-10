@@ -2,7 +2,8 @@
 # regeneration/regeneration.py
 # by Adam Cunnington
 
-from __future__ import with_statement
+import psyco
+psyco.full()
 
 from esutils import delays, players
 from rpg import rpg
@@ -10,7 +11,7 @@ from rpg import rpg
 _delays = {}
 
 
-def _level_change(user_ID, player_record, player_perk, old_level, new_level):
+def _level_change(user_ID, player, player_perk, old_level, new_level):
     if new_level == 0:
         if user_ID in _delays:
             delay = _delays.pop(user_ID)
@@ -18,8 +19,7 @@ def _level_change(user_ID, player_record, player_perk, old_level, new_level):
                 delay.stop()
         return
     if old_level == 0:
-        delay = _delays[user_ID] = delays.Delay(_regenerate, user_ID,
-                                                rpg.Player.players[user_ID].ID)
+        delay = _delays[user_ID] = delays.Delay(_regenerate, user_ID)
         if not players.Player(user_ID).dead:
             delay.start(5, True)
 
@@ -42,53 +42,42 @@ def player_spawn(event_var):
     if players.Player(user_ID).team_ID not in (players.TERRORIST,
                                                players.COUNTER_TERRORIST):
         return
-    with rpg.SessionWrapper() as session:
-        player_ID = rpg.Player.players[user_ID].ID
-        if not session.query(rpg.PlayerPerk.level).filter(
-                rpg.PlayerPerk.player_ID == player_ID,
-                rpg.PlayerPerk.perk_ID == _regeneration.record.ID).scalar():
-            return
+    if not rpg.get_level(user_ID, _regeneration):
+        return
     delay = _delays.get(user_ID)
     if delay is None:
-        delay = _delays[user_ID] = delays.Delay(_regenerate, user_ID,
-                                                player_ID)
+        delay = _delays[user_ID] = delays.Delay(_regenerate, user_ID)
         delay.start(5, True)
     elif not delay.running:
         delay.start(5, True)
 
 
-def _regenerate(user_ID, player_ID):
-    health_perk = rpg.Perk.perks.get("health")
-    if health_perk is None or not health_perk.enabled:
+def _regenerate(user_ID):
+    health = rpg.PerkManager.data.get("health")
+    if health is None or not health.enabled:
         max_health = 100
     else:
-        with rpg.SessionWrapper() as session:
-            health_level = session.query(rpg.PlayerPerk.level).filter(
-                rpg.PlayerPerk.player_ID == player_ID,
-                rpg.PlayerPerk.perk_ID == health_perk.record.ID).scalar()
-        if health_level is None:
-            max_health = 100
-        else:
-            max_health = health_perk.perk_calculator(health_level)
+        health_level = rpg.get_level(user_ID, health)
+    if health_level is None:
+        max_health = 100
+    else:
+        max_health = health.perk_calculator(health_level)
     player = players.Player(user_ID)
     if player.health >= max_health:
         return
-    with rpg.SessionWrapper() as session:
-        regeneration_level = session.query(rpg.PlayerPerk.level).filter(
-                    rpg.PlayerPerk.player_ID == player_ID,
-                    rpg.PlayerPerk.perk_ID == _regeneration.record.ID).scalar()
-    health_to_regenerate = _regeneration.perk_calculator(regeneration_level)
+    health_to_regenerate = _regeneration.perk_calculator(rpg.get_level(
+                                                    user_ID, _regeneration))
     if max_health - player.health <= health_to_regenerate:
         player.health = max_health
     else:
         player.health += health_to_regenerate
 
 
-def _unload():
+def unload():
     while _delays:
         user_ID, delay = _delays.popitem()
         delay.stop()
 
 
-_regeneration = rpg.Perk("regeneration", 5, lambda x: x,
-                         lambda x: 5 * 2**(x-1), _unload, _level_change)
+_regeneration = rpg.PerkManager("regeneration", 5, lambda x: x,
+                                lambda x: 5 * 2**(x-1), _level_change)

@@ -1,8 +1,9 @@
 # <path to game directory>/addons/eventscipts/admin/mods/rpg/perks/
-# clip_replenish_clip/clip_replenish_clip.py
+# clip_replenish/clip_replenish.py
 # by Adam Cunnington
 
-from __future__ import with_statement
+import psyco
+psyco.full()
 
 from esutils import delays, players, weapons
 from rpg import rpg
@@ -10,7 +11,7 @@ from rpg import rpg
 _delays = {}
 
 
-def _level_change(user_ID, player_record, player_perk, old_level, new_level):
+def _level_change(user_ID, player, player_perk, old_level, new_level):
     if new_level == 0:
         if user_ID in _delays:
             delay = _delays.pop(user_ID)
@@ -50,11 +51,7 @@ def player_spawn(event_var):
     player = players.Player(user_ID)
     if player.team_ID not in (players.TERRORIST, players.COUNTER_TERRORIST):
         return
-    with rpg.SessionWrapper() as session:
-        player_ID = rpg.Player.players[user_ID].ID
-        clip_replenish_level = session.query(rpg.PlayerPerk.level).filter(
-                rpg.PlayerPerk.player_ID == player_ID,
-                rpg.PlayerPerk.perk_ID == _clip_replenish.record.ID).scalar()
+    clip_replenish_level = rpg.get_level(user_ID, _clip_replenish)
     if not clip_replenish_level:
         return
     delay = _delays.get(user_ID)
@@ -82,11 +79,11 @@ def _replenish_clip(player):
         active_weapon.clip += clip_bonus
 
 
-def _unload():
+def unload():
     while _delays:
         user_ID, delay = _delays.popitem()
         delay.stop()
 
 
-_clip_replenish = rpg.Perk("clip_replenish_clip", 5, lambda x: 5 * (6-x),
-                           lambda x: 5 * 2**(x-1), _unload, _level_change)
+_clip_replenish = rpg.PerkManager("clip_replenish", 5, lambda x: 5 * (6-x),
+                                  lambda x: 5 * 2**(x-1), _level_change)

@@ -2,42 +2,36 @@
 # vampire/vampire.py
 # by Adam Cunnington
 
-from __future__ import with_statement
+import psyco
+psyco.full()
 
 from esutils import players
 from rpg import rpg
 
 
 def player_hurt(event_var):
-    attacker = int(event_var["attacker"])
-    if attacker == players.WORLD:
+    attacker_ID = int(event_var["attacker"])
+    if attacker_ID == players.WORLD:
         return
-    player_record = rpg.Player.players[attacker]
-    with rpg.SessionWrapper() as session:
-        vampire_level = session.query(rpg.PlayerPerk.level).filter(
-                        rpg.PlayerPerk.player_ID == player_record.ID,
-                        rpg.PlayerPerk.perk_ID == _vampire.record.ID).scalar()
+    vampire_level = rpg.get_level(attacker_ID, _vampire)
     if not vampire_level:
         return
-    health_perk = rpg.Perk.perks.get("health")
-    if health_perk is None or not health_perk.enabled:
+    health = rpg.PerkManager.data.get("health")
+    if health is None or not health.enabled:
         max_health = 100
     else:
-        with rpg.SessionWrapper() as session:
-            health_level = session.query(rpg.PlayerPerk.level).filter(
-                    rpg.PlayerPerk.player_ID == player_record.ID,
-                    rpg.PlayerPerk.perk_ID == health_perk.record.ID).scalar()
+        health_level = rpg.get_level(attacker_ID, health)
         if not health_level:
             max_health = 100
         else:
-            max_health = health_perk.perk_calculator(health_level)
+            max_health = health.perk_calculator(health_level)
     health_bonus = int(event_var[
             "dmg_health"]) * _vampire.perk_calculator(vampire_level)
-    player = players.Player(attacker)
+    player = players.Player(attacker_ID)
     if max_health - int(event_var["es_attackerhealth"]) <= health_bonus:
        player.health = max_health
     else:
         player.health += health_bonus
 
 
-_vampire = rpg.Perk("vampire", 8, lambda x: x * 0.1, lambda x: x * 20)
+_vampire = rpg.PerkManager("vampire", 8, lambda x: x * 0.1, lambda x: x * 20)
