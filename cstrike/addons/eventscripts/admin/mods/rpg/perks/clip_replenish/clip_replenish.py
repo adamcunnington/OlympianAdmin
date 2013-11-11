@@ -11,26 +11,28 @@ from rpg import rpg
 _delays = {}
 
 
-def _level_change(user_ID, player, player_perk, old_level, new_level):
+def _level_change(user_ID, player_perk, old_level, new_level):
     if new_level == 0:
         if user_ID in _delays:
             delay = _delays.pop(user_ID)
             if delay.running:
                 delay.stop()
-    elif old_level == 0:
-        delay = _delays[user_ID] = delays.Delay(_replenish_clip,
-                                                players.Player(user_ID))
-        if not players.Player(user_ID).dead:
-            delay.start(_clip_replenish.perk_calculator(new_level), True)
     else:
-        delay = _delays.get(user_ID)
-        if delay is None:
-            delay = _delays[user_ID] = delays.Delay(_replenish_clip,
-                                                players.Player(user_ID))
-            if not players.Player(user_ID).dead:
-                delay.start(_clip_replenish.perk_calculator(new_level), True)
-        elif delay.running:
-            delay.interval = _clip_replenish.perk_calculator(new_level)
+        player = players.Player(user_ID)
+        replenish_iterval = _clip_replenish.perk_calculator(new_level)
+        if old_level == 0:
+            delay = _delays[user_ID] = delays.Delay(_replenish_clip, player)
+            if not player.dead:
+                delay.start(replenish_iterval, True)
+        else:
+            delay = _delays.get(user_ID)
+            if delay is None:
+                delay = _delays[user_ID] = delays.Delay(_replenish_clip,
+                                                                        player)
+                if not player.dead:
+                    delay.start(replenish_iterval, True)
+            elif delay.running:
+                delay.interval = replenish_iterval
 
 
 def player_death(event_var):
@@ -43,7 +45,8 @@ def player_disconnect(event_var):
     user_ID = int(event_var["userid"])
     if user_ID in _delays:
         delay = _delays.pop(user_ID)
-        delay.stop()
+        if delay.running:
+            delay.stop()
 
 
 def player_spawn(event_var):

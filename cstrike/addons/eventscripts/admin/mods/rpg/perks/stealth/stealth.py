@@ -9,12 +9,12 @@ from esutils import players
 from rpg import rpg
 
 
-def _level_change(user_ID, player, player_perk, old_level, new_level):
-    _player = players.Player(user_ID)
+def _level_change(user_ID, player_perk, old_level, new_level):
+    player = players.Player(user_ID)
     if new_level == 0:
-        _player.colour = (255, 255, 255, 255)
+        player.colour = (255, 255, 255, 255)
     else:
-        _set_colour(_player, new_level)
+        _set_colour(player, new_level)
 
 
 def player_spawn(event_var):

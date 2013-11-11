@@ -10,7 +10,7 @@ from rpg import rpg
 
 _delays = {}
 
-def _level_change(user_ID, player, player_perk, old_level, new_level):
+def _level_change(user_ID, player_perk, old_level, new_level):
     if new_level == 0:
         if user_ID in _delays:
             delay = _delays.pop(user_ID)

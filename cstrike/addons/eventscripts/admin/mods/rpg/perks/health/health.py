@@ -9,14 +9,14 @@ from esutils import players
 from rpg import rpg
 
 
-def _level_change(user_ID, player, player_perk, old_level, new_level):
+def _level_change(user_ID, player_perk, old_level, new_level):
     if new_level == 0:
         new_max_health = 100
     else:
         new_max_health = _health.perk_calculator(new_level)
-    _player = players.Player(user_ID)
-    if _player.health > new_max_health:
-        _player.health = new_max_health
+    player = players.Player(user_ID)
+    if player.health > new_max_health:
+        player.health = new_max_health
 
 
 def player_spawn(event_var):
