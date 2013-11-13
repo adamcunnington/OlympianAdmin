@@ -24,7 +24,7 @@ def player_spawn(event_var):
                                                players.COUNTER_TERRORIST):
         return
     stealth_level = rpg.get_level(user_ID, _stealth)
-    if not stealth_level:
+    if stealth_level == 0:
         return
     _set_colour(player, stealth_level)
 
