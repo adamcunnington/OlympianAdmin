@@ -14,14 +14,14 @@ def player_hurt(event_var):
     if attacker_ID == players.WORLD:
         return
     vampire_level = rpg.get_level(attacker_ID, _vampire)
-    if not vampire_level:
+    if vampire_level == 0:
         return
     health = rpg.PerkManager.data.get("health")
     if health is None or not health.enabled:
         max_health = 100
     else:
         health_level = rpg.get_level(attacker_ID, health)
-        if not health_level:
+        if health_level == 0:
             max_health = 100
         else:
             max_health = health.perk_calculator(health_level)
