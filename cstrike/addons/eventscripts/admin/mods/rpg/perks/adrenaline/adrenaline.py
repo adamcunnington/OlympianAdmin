@@ -42,7 +42,7 @@ def player_hurt(event_var):
         int(event_var["hitgroup"]) != 1):
         return
     adrenaline_level = rpg.get_level(victim_ID, _adrenaline)
-    if not adrenaline_level:
+    if adrenaline_level == 0:
         return
     player = players.Player(victim_ID)
     player.speed = _adrenaline.perk_calculator(adrenaline_level)
@@ -65,7 +65,7 @@ def _remove_effects(user_ID):
         max_alpha = 255
     else:
         stealth_level = rpg.get_level(user_ID, stealth)
-        if not stealth_level:
+        if stealth_level == 0:
             max_alpha = 255
         else:
             max_alpha = stealth.perk_calculator(stealth_level)
