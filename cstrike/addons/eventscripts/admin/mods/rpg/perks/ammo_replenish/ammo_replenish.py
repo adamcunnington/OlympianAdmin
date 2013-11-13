@@ -55,7 +55,7 @@ def player_spawn(event_var):
     if player.team_ID not in (players.TERRORIST, players.COUNTER_TERRORIST):
         return
     ammo_replenish_level = rpg.get_level(user_ID, _ammo_replenish)
-    if not ammo_replenish_level:
+    if ammo_replenish_level == 0:
         return
     delay = _delays.get(user_ID)
     if delay is None:
