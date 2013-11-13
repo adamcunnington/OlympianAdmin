@@ -12,7 +12,7 @@ from rpg import rpg
 def player_jump(event_var):
     user_ID = int(event_var["userid"])
     long_jump_level = rpg.get_level(user_ID, _long_jump)
-    if not long_jump_level:
+    if long_jump_level == 0:
         return
     players.Player(user_ID).push(float(long_jump_level * 0.1), 0)
 
