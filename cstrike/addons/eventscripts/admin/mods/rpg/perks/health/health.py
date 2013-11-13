@@ -25,7 +25,7 @@ def player_spawn(event_var):
     if player.team_ID not in (players.TERRORIST, players.COUNTER_TERRORIST):
         return
     health_level = rpg.get_level(user_ID, _health)
-    if not health_level:
+    if health_level == 0:
         return
     player.health = _health.perk_calculator(health_level)
 
