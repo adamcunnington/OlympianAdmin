@@ -45,7 +45,7 @@ def player_hurt(event_var):
         != weapons.CATEGORY_MELEE):
         return
     ice_stab_level = rpg.get_level(attacker_ID, _ice_stab)
-    if not ice_stab_level:
+    if ice_stab_level == 0:
         return
     player = players.Player(victim_ID)
     player.speed = _ice_stab.perk_calculator(ice_stab_level)
@@ -68,7 +68,7 @@ def _remove_effects(user_ID):
         max_alpha = 255
     else:
         stealth_level = rpg.get_level(user_ID, stealth)
-        if not stealth_level:
+        if stealth_level == 0:
             max_alpha = 255
         else:
             max_alpha = stealth.perk_calculator(stealth_level)
