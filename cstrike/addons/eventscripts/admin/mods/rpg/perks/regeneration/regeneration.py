@@ -42,7 +42,7 @@ def player_spawn(event_var):
     if players.Player(user_ID).team_ID not in (players.TERRORIST,
                                                players.COUNTER_TERRORIST):
         return
-    if not rpg.get_level(user_ID, _regeneration):
+    if rpg.get_level(user_ID, _regeneration) == 0:
         return
     delay = _delays.get(user_ID)
     if delay is None:
@@ -58,7 +58,7 @@ def _regenerate(user_ID):
         max_health = 100
     else:
         health_level = rpg.get_level(user_ID, health)
-    if health_level is None:
+    if health_level == 0:
         max_health = 100
     else:
         max_health = health.perk_calculator(health_level)
