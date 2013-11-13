@@ -42,7 +42,7 @@ def player_spawn(event_var):
     if players.Player(user_ID).team_ID not in (players.TERRORIST,
                                                players.COUNTER_TERRORIST):
         return
-    if not rpg.get_level(user_ID, _armor_repair):
+    if rpg.get_level(user_ID, _armor_repair) == 0:
         return
     delay = _delays.get(user_ID)
     if delay is None:
