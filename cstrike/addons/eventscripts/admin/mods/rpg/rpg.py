@@ -105,58 +105,74 @@ class Player(_Base):
     def _get_buy_items(cls, user_ID):
         player = cls.data[user_ID]
         for perk_manager in sorted(PerkManager.data.itervalues(),
-                      key=lambda perk_manager: perk_manager.perk.verbose_name):
+                                   key=lambda perk_manager:
+                                   perk_manager.perk.verbose_name):
             if not perk_manager.enabled:
-                yield menus.MenuOption("%s -> [DISABLED]"
-                            % perk_manager.perk.verbose_name, selectable=False)
+                yield menus.MenuOption("%s -> [DISABLED]" %
+                                       perk_manager.perk.verbose_name,
+                                       selectable=False)
                 continue
             else:
-                player_perk = PlayerPerk.data[user_ID][
-                                                    perk_manager.perk.basename]
+                # Declare variable for readable line lengths.
+                _basename = perk_manager.perk.basename
+                player_perk = PlayerPerk.data[user_ID][_basename]
                 if player_perk.level >= perk_manager.max_level:
-                    yield menus.MenuOption("%s -> %s [MAXED]"
-                          %(perk_manager.perk.verbose_name, player_perk.level),
-                          selectable=False)
+                    yield menus.MenuOption("%s -> %s [MAXED]" %(
+                                           perk_manager.perk.verbose_name,
+                                           player_perk.level),
+                                           selectable=False)
                     continue
                 else:
                     next_level = player_perk.level + 1
                     cost = perk_manager.cost_calculator(next_level)
                     selectable = cost <= player.credits
-                    yield menus.MenuOption("%s -> %s [%s Credits]"
-                         %(perk_manager.perk.verbose_name, next_level, cost),
-                         (player, perk_manager, player_perk, next_level,
-                          -cost), selectable)
+                    yield menus.MenuOption("%s -> %s [%s Credits]" %(
+                                           perk_manager.perk.verbose_name,
+                                           next_level, cost), (player,
+                                           perk_manager, player_perk,
+                                           next_level, -cost), selectable)
 
     @classmethod
     def _get_sell_items(cls, user_ID):
         for perk_manager in sorted(PerkManager.data.itervalues(),
-                    key=lambda perk_manager: perk_manager.perk.verbose_name):
+                                   key=lambda perk_manager:
+                                   perk_manager.perk.verbose_name):
             if not perk_manager.enabled:
-                yield menus.MenuOption("%s -> [DISABLED]"
-                            % perk_manager.perk.verbose_name, selectable=False)
+                yield menus.MenuOption("%s -> [DISABLED]" %
+                                       perk_manager.perk.verbose_name,
+                                       selectable=False)
                 continue
             else:
-                player_perk = PlayerPerk.data[user_ID][
-                                                    perk_manager.perk.basename]
+                # Declare variable for readable line lengths.
+                _basename = perk_manager.perk.basename
+                player_perk = PlayerPerk.data[user_ID][_basename]
                 if player_perk.level == 0:
-                    yield menus.MenuOption("%s -> [NO LEVEL]"
-                            % perk_manager.perk.verbose_name, selectable=False)
+                    yield menus.MenuOption("%s -> [NO LEVEL]" %
+                                           perk_manager.perk.verbose_name,
+                                           selectable=False)
                     continue
                 else:
                     cost = int(perk_manager.cost_calculator(player_perk.level)
                                * _CREDITS_SELL_MULTIPLIER)
-                    yield menus.MenuOption("%s -> %s [%s Credits]"
-                           %(perk_manager.perk.verbose_name, player_perk.level,
-                             cost), (cls.data[user_ID], perk_manager,
-                           player_perk, player_perk.level - 1, cost))
+                    yield menus.MenuOption("%s -> %s [%s Credits]" %(
+                                           perk_manager.perk.verbose_name,
+                                           player_perk.level, cost),
+                                           (cls.data[user_ID], perk_manager,
+                                           player_perk, player_perk.level - 1,
+                                           cost))
 
     @classmethod
     def _get_stats_items(cls, user_ID):
         for perk_manager in sorted(PerkManager.data.itervalues(),
-                      key=lambda perk_manager: perk_manager.perk.verbose_name):
-            yield menus.MenuOption("%s: Level %s"
-                    %(perk_manager.perk.verbose_name, PlayerPerk.data[user_ID][
-                    perk_manager.perk_basename]), selectable=False)
+                                   key=lambda perk_manager:
+                                   perk_manager.perk.verbose_name):
+            # Declare variable for readable line lengths.
+            _basename = perk_manager.perk_basename
+            yield menus.MenuOption("%s: Level %s" %(
+                                   perk_manager.perk.verbose_name,
+                                   PlayerPerk.data[user_ID][_basename]),
+                                   selectable=False)
+
 
 class _Perk(_Base):
     __tablename__ = "Perks"
@@ -203,9 +219,10 @@ class PlayerPerk(_Base):
         player_ID = Player.data[user_ID].ID
         perk_ID = PerkManager.data[perk_basename].perk.ID
         with _QuerySessionWrapper() as session:
-            player_perk = session.query(PlayerPerk).filter(
-                                         PlayerPerk.player_ID == player_ID,
-                                         PlayerPerk.perk_ID == perk_ID).first()
+            player_perk = session.query(PlayerPerk).filter(PlayerPerk.player_ID
+                                                           == player_ID,
+                                                           PlayerPerk.perk_ID
+                                                           == perk_ID).first()
         if player_perk is None:
             player_perk = cls(player_ID, perk_ID)
             with _CommitSessionWrapper() as session:
@@ -248,12 +265,16 @@ def get_level(user_ID, perk_manager):
 def _get_top_items(user_ID):
     with _QuerySessionWrapper() as session:
         _players = session.query(Player).filter(Player.steam_ID !=
-            players.BOT_STEAM_ID, Player.level >= _MIN_LEVEL_TO_RANK).order_by(
-            Player.level).limit(_rpg_top_menu.max_items).all()
+                                                players.BOT_STEAM_ID,
+                                                Player.level >=
+                                                _MIN_LEVEL_TO_RANK).order_by(
+                                                Player.level).limit(
+                                                _rpg_top_menu.max_items).all()
     for player in _players:
         try:
-            player = Player.data[players.get_player_from_steam_ID(
-                                                      player.steam_ID).user_ID]
+            # Declare variable for readable line lengths.
+            _key = players.get_player_from_steam_ID(player.steam_ID).user_ID
+            player = Player.data[_key]
         except KeyError:
             pass
         yield menus.MenuOption("%s: Level %s" %(player.name, player.level),
@@ -390,8 +411,9 @@ def player_hurt(event_var):
         exp *= _BOTS_EXP_VICTIM_MULTIPLIER
     elif _EXP_RELATIVE_MULTIPLIER:
         with _QuerySessionWrapper() as session:
-            top_level = session.query(Player.level).order_by(
-                                                Player.level).limit(1).scalar()
+            # Declare variable for readable line lengths.
+            _query = session.query(Player.level).order_by(Player.level)
+            top_level = _query.limit(1).scalar()
         attacker_index = Player.data.get(attacker_ID).level/top_level * 100
         victim_index = (Player.data.get(int(event_var["userid"])).level
                         /top_level) * 100
@@ -411,23 +433,25 @@ def player_say(event_var):
         player = Player.data[user_ID]
         if player.level < _MIN_LEVEL_TO_RANK:
             messages.whisper(user_ID, "${teamcolour}%s${yellow}, you need to "
-                                      "reach level %s to rank."
-                                      %(player.name, _MIN_LEVEL_TO_RANK))
+                             "reach level %s to rank." %(player.name,
+                                                         _MIN_LEVEL_TO_RANK))
             return
         with _QuerySessionWrapper() as session:
             position = session.query(func.count(Player.ID)).filter(
-                        Player.steam_ID != players.BOT_STEAM_ID, Player.level <
-                        player.level, Player.exp < player.exp).scalar()
+                                     Player.steam_ID != players.BOT_STEAM_ID,
+                                     Player.level < player.level,
+                                     Player.exp < player.exp).scalar()
             total_ranked = session.query(func.count(Player.ID)).filter(
-                       Player.steam_ID != players.BOT_STEAM_ID, Player.level >=
-                       _MIN_LEVEL_TO_RANK).scalar()
+                                         Player.steam_ID !=
+                                         players.BOT_STEAM_ID, Player.level >=
+                                         _MIN_LEVEL_TO_RANK).scalar()
         messages.whisper(user_ID, "${teamcolour}%s${yellow}, you are ranked "
                          "${green}%s/%s${yellow}, at level "
                          "${green}%s${yellow} with ${green}%s ${yellow}exp. "
-                         "and ${green}%s ${yellow}credits."
-                         %(players.Player(user_ID).name, position + 1,
-                           total_ranked, player.level,
-                           player.exp, player.credits))
+                         "and ${green}%s ${yellow}credits." %(
+                         players.Player(user_ID).name, position + 1,
+                         total_ranked, player.level, player.exp,
+                         player.credits))
     elif text =="rpgsell":
         _rpg_sell_menu.send(user_ID)
     elif text =="rpgstats":
@@ -497,29 +521,32 @@ def round_end(event_var=None):
                 perk_manager = PerkManager.data[perk_basename]
                 if not perk_manager.enabled:
                     continue
-                bot_perk_options[perk_basename] = bot_player_perks[
-                                                       perk_basename].level + 1
+                bot_perk_options[perk_basename] = (bot_player_perks[
+                                                   perk_basename].level + 1)
             while True:
-                next_upgrade = PerkManager.data[sorted(bot_perk_options,
-                               key=lambda perk_basename: PerkManager.data[
-                               perk_basename].cost_calculator(bot_perk_options[
-                               perk_basename]))[0]]
-                cost = next_upgrade.cost_calculator(bot_perk_options[
-                                             next_upgrade.perk.basename])
+                next_perk = PerkManager.data[sorted(bot_perk_options,
+                                                    key=lambda perk_basename:
+                                                    PerkManager.data[
+                                                    perk_basename].
+                                                    cost_calculator(
+                                                    bot_perk_options[
+                                                    perk_basename]))[0]]
+                cost = next_perk.cost_calculator(bot_perk_options[
+                                                 next_perk.perk.basename])
                 if bot.credits < cost:
                     break
-                player_perk = bot_player_perks[next_upgrade.perk.basename]
+                player_perk = bot_player_perks[next_perk.perk.basename]
                 bot.credits -= cost
-                _set_level(bot_ID, next_upgrade, player_perk,
+                _set_level(bot_ID, next_perk, player_perk,
                            player_perk.level, player_perk.level + 1)
-                bot_perk_options[next_upgrade.perk.basename] += 1
+                bot_perk_options[next_perk.perk.basename] += 1
 
 
 _commit_delay = delays.Delay(round_end)
 
 
-def _rpg_menu_callback(user_ID, (player, perk_manager, player_perk,
-                           next_level, cost)):
+def _rpg_menu_callback(user_ID, (player, perk_manager, player_perk, next_level,
+                                 cost)):
     player.credits += cost
     _set_level(user_ID, perk_manager, player_perk, player_perk.level,
                next_level)
