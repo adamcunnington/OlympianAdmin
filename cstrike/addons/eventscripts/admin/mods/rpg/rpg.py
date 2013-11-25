@@ -19,9 +19,7 @@ from esutils import delays, menus, messages, players, tools
 
 __all__ = (
     "RPGError",
-    "Player",
-    "PlayerPerk",
-    "Perk",
+    "PerkManager",
     "get_level"
     )
 
@@ -57,7 +55,7 @@ class RPGError(Exception):
     pass
 
 
-class Player(_Base):
+class _Player(_Base):
     __tablename__ = "Players"
     data = {}
 
@@ -75,7 +73,7 @@ class Player(_Base):
     @classmethod
     def _load_player(cls, user_ID, steam_ID, name):
         with _QuerySessionWrapper() as session:
-            player = session.query(Player).filter(Player.steam_ID ==
+            player = session.query(_Player).filter(_Player.steam_ID ==
                                                   steam_ID).first()
         if player is None:
             player = cls(steam_ID, name)
@@ -87,7 +85,7 @@ class Player(_Base):
         cls.data[user_ID] = player
         for perk_basename in PerkManager.data:
             if PerkManager.data[perk_basename].enabled:
-                PlayerPerk._load_player_perk(user_ID, perk_basename)
+                _PlayerPerk._load_player_perk(user_ID, perk_basename)
 
     @classmethod
     def _get_buy_description(cls, user_ID):
@@ -115,7 +113,7 @@ class Player(_Base):
             else:
                 # Declare variable for readable line lengths.
                 _basename = perk_manager.perk.basename
-                player_perk = PlayerPerk.data[user_ID][_basename]
+                player_perk = _PlayerPerk.data[user_ID][_basename]
                 if player_perk.level >= perk_manager.max_level:
                     yield menus.MenuOption("%s -> %s [MAXED]" %(
                                            perk_manager.perk.verbose_name,
@@ -145,7 +143,7 @@ class Player(_Base):
             else:
                 # Declare variable for readable line lengths.
                 _basename = perk_manager.perk.basename
-                player_perk = PlayerPerk.data[user_ID][_basename]
+                player_perk = _PlayerPerk.data[user_ID][_basename]
                 if player_perk.level == 0:
                     yield menus.MenuOption("%s -> [NO LEVEL]" %
                                            perk_manager.perk.verbose_name,
@@ -170,7 +168,7 @@ class Player(_Base):
             _basename = perk_manager.perk_basename
             yield menus.MenuOption("%s: Level %s" %(
                                    perk_manager.perk.verbose_name,
-                                   PlayerPerk.data[user_ID][_basename]),
+                                   _PlayerPerk.data[user_ID][_basename]),
                                    selectable=False)
 
 
@@ -195,18 +193,18 @@ class _Perk(_Base):
             with _CommitSessionWrapper() as session:
                 session.add(perk)
         for player in players.all_players():
-            PlayerPerk._load_player_perk(player.user_ID, perk.basename)
+            _PlayerPerk._load_player_perk(player.user_ID, perk.basename)
         return perk
 
 
-class PlayerPerk(_Base):
+class _PlayerPerk(_Base):
     __tablename__ = "Players Perks"
     data = {}
 
-    player_ID = Column(Integer, ForeignKey(Player.ID), primary_key=True)
+    player_ID = Column(Integer, ForeignKey(_Player.ID), primary_key=True)
     perk_ID = Column(Integer, ForeignKey(_Perk.ID), primary_key=True)
     level = Column(Integer, nullable=False)
-    players = relationship(Player, backref=Player.__tablename__)
+    players = relationship(_Player, backref=_Player.__tablename__)
     perks = relationship(_Perk, backref=_Perk.__tablename__)
 
     def __init__(self, player_ID, perk_ID, level=0):
@@ -216,13 +214,14 @@ class PlayerPerk(_Base):
 
     @classmethod
     def _load_player_perk(cls, user_ID, perk_basename):
-        player_ID = Player.data[user_ID].ID
+        player_ID = _Player.data[user_ID].ID
         perk_ID = PerkManager.data[perk_basename].perk.ID
         with _QuerySessionWrapper() as session:
-            player_perk = session.query(PlayerPerk).filter(PlayerPerk.player_ID
-                                                           == player_ID,
-                                                           PlayerPerk.perk_ID
-                                                           == perk_ID).first()
+            player_perk = session.query(_PlayerPerk).filter(_PlayerPerk.
+                                                            player_ID
+                                                            == player_ID,
+                                                            _PlayerPerk.perk_ID
+                                                            == perk_ID).first()
         if player_perk is None:
             player_perk = cls(player_ID, perk_ID)
             with _CommitSessionWrapper() as session:
@@ -234,10 +233,29 @@ class PlayerPerk(_Base):
 
 
 class PerkManager(object):
+    """Create a manager that represents and interfaces with all aspects of the
+    perk.
+
+    """
     data = {}
 
     def __init__(self, basename, max_level, perk_calculator, cost_calculator,
                  level_change_callable=None, verbose_name=None):
+        """Instantiate a PerkManager object.
+
+        Arguments:
+        basename - the basename to identify the perk by.
+        max_level - the maximum level that any user can level this perk up to.
+        perk_calculator - the callable to calculate the benefit of the perk at
+        a given level.
+        cost_calculator - the callable to calculate the cost of the perk at a
+        given level.
+        level_change_callable (Keyword Default: None) - the callable to call
+        when any player levels up or down that perk.
+        verbose_name (Keyword Default: None) - the custom verbose name to use
+        in text. If it is not passed, it will be constructed from the basename.
+
+        """
         if basename in self.data:
             raise RPGError("a perk with basename, %s, is already registered" %
                            basename)
@@ -259,22 +277,29 @@ class PerkManager(object):
 
 
 def get_level(user_ID, perk_manager):
-    return PlayerPerk.data[user_ID][perk_manager.perk.basename].level
+    """Returns a user's level for a given perk.
+
+    Arguments:
+    user_ID - the unique session ID of the user.
+    perk_manager - the PerkManager instance that represents the perk.
+
+    """
+    return _PlayerPerk.data[user_ID][perk_manager.perk.basename].level
 
 
 def _get_top_items(user_ID):
     with _QuerySessionWrapper() as session:
-        _players = session.query(Player).filter(Player.steam_ID !=
+        _players = session.query(_Player).filter(_Player.steam_ID !=
                                                 players.BOT_STEAM_ID,
-                                                Player.level >=
+                                                _Player.level >=
                                                 _MIN_LEVEL_TO_RANK).order_by(
-                                                Player.level).limit(
+                                                _Player.level).limit(
                                                 _rpg_top_menu.max_items).all()
     for player in _players:
         try:
             # Declare variable for readable line lengths.
             _key = players.get_player_from_steam_ID(player.steam_ID).user_ID
-            player = Player.data[_key]
+            player = _Player.data[_key]
         except KeyError:
             pass
         yield menus.MenuOption("%s: Level %s" %(player.name, player.level),
@@ -291,7 +316,7 @@ def _level_up(player, levels=1):
 
 def load():
     for player in players.all_players():
-        Player._load_player(player.user_ID, player.steam_ID, player.name)
+        _Player._load_player(player.user_ID, player.steam_ID, player.name)
     if _DATABASE_SAVE_INTERVAL > 0:
         _commit_delay.start(_DATABASE_SAVE_INTERVAL, True)
 
@@ -348,11 +373,11 @@ def hostage_rescued(event_var):
 def player_connect(event_var):
     user_ID = int(event_var["userid"])
     name = "BOT" if players.Player(user_ID).bot else event_var["name"]
-    Player._load_player(user_ID, event_var["networkid"], name)
+    _Player._load_player(user_ID, event_var["networkid"], name)
 
 
 def player_changename(event_var):
-    Player.data[int(event_var["userid"])].name = event_var["newname"]
+    _Player.data[int(event_var["userid"])].name = event_var["newname"]
 
 
 def player_death(event_var):
@@ -382,10 +407,10 @@ def player_death(event_var):
 def player_disconnect(event_var):
     user_ID = int(event_var["userid"])
     with _CommitSessionWrapper() as session:
-        session.add(Player.data[user_ID])
-        session.add_all(PlayerPerk.data[user_ID].itervalues())
-    del Player.data[user_ID]
-    del PlayerPerk.data[user_ID]
+        session.add(_Player.data[user_ID])
+        session.add_all(_PlayerPerk.data[user_ID].itervalues())
+    del _Player.data[user_ID]
+    del _PlayerPerk.data[user_ID]
 
 
 def player_hurt(event_var):
@@ -412,10 +437,10 @@ def player_hurt(event_var):
     elif _EXP_RELATIVE_MULTIPLIER:
         with _QuerySessionWrapper() as session:
             # Declare variable for readable line lengths.
-            _query = session.query(Player.level).order_by(Player.level)
+            _query = session.query(_Player.level).order_by(_Player.level)
             top_level = _query.limit(1).scalar()
-        attacker_index = Player.data.get(attacker_ID).level/top_level * 100
-        victim_index = (Player.data.get(int(event_var["userid"])).level
+        attacker_index = _Player.data.get(attacker_ID).level/top_level * 100
+        victim_index = (_Player.data.get(int(event_var["userid"])).level
                         /top_level) * 100
         multiplier = min(1, max(attacker_index / victim_index, 100) ** 0.5)
         exp *= multiplier
@@ -430,20 +455,20 @@ def player_say(event_var):
     if text == "rpgmenu":
         _rpg_buy_menu.send(user_ID)
     elif text == "rpgrank":
-        player = Player.data[user_ID]
+        player = _Player.data[user_ID]
         if player.level < _MIN_LEVEL_TO_RANK:
             messages.whisper(user_ID, "${teamcolour}%s${yellow}, you need to "
                              "reach level %s to rank." %(player.name,
                                                          _MIN_LEVEL_TO_RANK))
             return
         with _QuerySessionWrapper() as session:
-            position = session.query(func.count(Player.ID)).filter(
-                                     Player.steam_ID != players.BOT_STEAM_ID,
-                                     Player.level < player.level,
-                                     Player.exp < player.exp).scalar()
-            total_ranked = session.query(func.count(Player.ID)).filter(
-                                         Player.steam_ID !=
-                                         players.BOT_STEAM_ID, Player.level >=
+            position = session.query(func.count(_Player.ID)).filter(
+                                     _Player.steam_ID != players.BOT_STEAM_ID,
+                                     _Player.level < player.level,
+                                     _Player.exp < player.exp).scalar()
+            total_ranked = session.query(func.count(_Player.ID)).filter(
+                                         _Player.steam_ID !=
+                                         players.BOT_STEAM_ID, _Player.level >=
                                          _MIN_LEVEL_TO_RANK).scalar()
         messages.whisper(user_ID, "${teamcolour}%s${yellow}, you are ranked "
                          "${green}%s/%s${yellow}, at level "
@@ -463,7 +488,7 @@ def player_say(event_var):
 def _process_exp(target, exp, offline=False):
     exp = int(exp)
     if not offline:
-        player = Player.data.get(target)
+        player = _Player.data.get(target)
     else:
         player = target
     exp += player.exp
@@ -486,17 +511,17 @@ def round_end(event_var=None):
     objects_to_commit = []
     bot_ID = None
     for player in players.all_players():
-        objects_to_commit.append(Player.data[player.user_ID])
-        objects_to_commit.extend(PlayerPerk.data[player.user_ID].itervalues())
+        objects_to_commit.append(_Player.data[player.user_ID])
+        objects_to_commit.extend(_PlayerPerk.data[player.user_ID].itervalues())
         if player.bot:
             bot_ID = player.user_ID
     with _CommitSessionWrapper() as session:
         session.add_all(objects_to_commit)
     if bot_ID is not None:
-        bot = Player.data[bot_ID]
+        bot = _Player.data[bot_ID]
         if _BOTS_RELATIVE_PERKS:
             player_perk_levels = {}
-            for players_perks in PlayerPerk.data.itervalues():
+            for players_perks in _PlayerPerk.data.itervalues():
                 for perk_basename in players_perks:
                     player_perk = players_perks[perk_basename]
                     if player_perk.player_ID == bot.ID:
@@ -511,11 +536,11 @@ def round_end(event_var=None):
                 if not perk_manager.enabled:
                     continue
                 average_level = int(sum(levels) / len(levels))
-                player_perk = PlayerPerk.data[bot_ID][perk_basename]
+                player_perk = _PlayerPerk.data[bot_ID][perk_basename]
                 _set_level(bot_ID, perk_manager, player_perk,
                            player_perk.level, average_level)
         else:
-            bot_player_perks = PlayerPerk.data[bot_ID]
+            bot_player_perks = _PlayerPerk.data[bot_ID]
             bot_perk_options = {}
             for perk_basename in PerkManager.data:
                 perk_manager = PerkManager.data[perk_basename]
@@ -550,20 +575,21 @@ def _rpg_menu_callback(user_ID, (player, perk_manager, player_perk, next_level,
     player.credits += cost
     _set_level(user_ID, perk_manager, player_perk, player_perk.level,
                next_level)
+    menus.resend_last_popup(user_ID)
 
 
 _rpg_buy_menu = menus.Menu(_rpg_menu_callback,
-                           get_description=Player._get_buy_description,
-                           get_items=Player._get_buy_items, resend=True)
+                           get_description=_Player._get_buy_description,
+                           get_items=_Player._get_buy_items)
 _rpg_buy_menu.title = "OLYMPIAN# RPG"
 _rpg_sell_menu = menus.Menu(_rpg_menu_callback,
-                            get_description=Player._get_sell_description,
-                            get_items=Player._get_sell_items, resend=True)
+                            get_description=_Player._get_sell_description,
+                            get_items=_Player._get_sell_items)
 _rpg_sell_menu.title = "OLYMPIAN# RPG"
 
 
-_rpg_stats_menu = menus.Menu(get_description=Player._get_stats_description,
-                             get_items=Player._get_stats_items)
+_rpg_stats_menu = menus.Menu(get_description=_Player._get_stats_description,
+                             get_items=_Player._get_stats_items)
 _rpg_stats_menu.title = "OLYMPIAN# RPG"
 
 
@@ -584,15 +610,15 @@ def unload():
         _commit_delay.stop()
     objects_to_commit = []
     for player in players.all_players():
-        objects_to_commit.append(Player.data[player.user_ID])
-        objects_to_commit.extend(PlayerPerk.data[player.user_ID].values())
+        objects_to_commit.append(_Player.data[player.user_ID])
+        objects_to_commit.extend(_PlayerPerk.data[player.user_ID].values())
     with _CommitSessionWrapper() as session:
         session.add_all(objects_to_commit)
     while PerkManager.data:
         basename, perk = PerkManager.data.popitem()
         perk.unload()
-    Player.data.clear()
-    PlayerPerk.data.clear()
+    _Player.data.clear()
+    _PlayerPerk.data.clear()
 
 
 _engine = create_engine("sqlite:///%s" %

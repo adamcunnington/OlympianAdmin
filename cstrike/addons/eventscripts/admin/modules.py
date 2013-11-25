@@ -2,8 +2,8 @@
 # modules.py
 # by Adam Cunnington
 
-"""Provide a simple way to create custom modules and register them to the
-core. Automatically handle action commands and menu interfaces.
+"""Provides a simple way to create custom modules and register them to the
+core. Automatically handle command commands and menu interfaces.
 
 """
 
@@ -11,61 +11,63 @@ from __future__ import absolute_import
 
 import os
 
-from admin import metadata
-from esutils import commands, menus, tools
+import admin.metadata
+from esutils import commands, messages, menus, tools
 
 
 __all__ = (
     "module_menu",
     "ModulesError",
     "Module",
-    "Action",
+    "PlayerCommand",
+    "AdminCommand",
     "Parameter",
     "Menu",
-    "DynamicMenu",
+    "DynamicMenu"
 )
 
 
-_UNLOADED_PREFIX = "UNLOADED: "
-
-
 module_menu = menus.Menu()
-module_menu.title = metadata.VERBOSE_NAME
+module_menu.title = admin.metadata.VERBOSE_NAME
 module_menu.description = ":: Module Administration"
 
 
-class _Callback(commands.Callback):
-    def __init__(self, action, *args, **kwargs):
-        super(_Callback, self).__init__(*args, **kwargs)
-        self.action = action
+class _CommandInformers(object):
+    @classmethod
+    def disabled(cls, informer, command_name):
+        commands.inform(informer,
+                        admin.whisper_text("Command, %s, is currently "
+                                           "disabled." % command_name,
+                                           informer in
+                                           messages.coloured_informers))
 
-class _Command(commands._Command):
-    def _invalid_syntax(self, command, args, user_ID=None):
-        action = self.callback.action
-        parameters = self.callback.parameters
-        total_args = len(args)
-        if (not action.menu_interface or total_args >
-            len(self.callback.parameters)):
-            super(_Command, self)._invalid_syntax(command, args,
-                                                  user_ID=user_ID)
-            return
-        # Otherwise, the next parameter's menu needs sending.
-        self.callback.parameters[total_args].menu.send(user_ID)
-        args.insert(0, action.basename)
-        menus.Menu.players[user_ID].identifiers.extend(args)
+    @classmethod
+    def invalid_value(cls, informer, command_name, parameter, arg,
+                      user_ID=None):
+        commands.inform(informer,
+                        admin.whisper_text("Invalid value, %s, for "
+                                           "parameter, %s." %(arg,
+                                           parameter.basename),
+                                           informer in
+                                           messages.coloured_informers),
+                        user_ID)
 
-class _ClientConsoleCommand(_Command, commands.ClientConsoleCommand):
-    pass
+    @classmethod
+    def no_auth(cls, informer, command_name, user_ID=None):
+        commands.inform(informer,
+                        admin.whisper_text("You are not authorised to use the "
+                                           "command, %s." % command_name,
+                                           informer in
+                                           messages.coloured_informers),
+                        user_ID)
 
-class _ClientSayCommand(_Command, commands.ClientSayCommand):
-    pass
 
 class ModulesError(Exception):
     """General error encountered relating to admin.modules"""
 
 class Module(object):
     """Create a module that represents a subset of functionality of the admin
-    system core and register appropriate actions to reside in this module.
+    system core and register appropriate commands to reside in this module.
 
     """
     modules = {}
@@ -79,61 +81,57 @@ class Module(object):
         in text. If it is not passed, it will be constructed from the basename.
 
         """
+        verbose_name = verbose_name or tools.format_verbose_name(basename)
         if basename in self.modules:
             module = self.modules[basename]
             if module.loaded:
                 raise ModulesError("%s is already loaded." % basename)
             self._option = module.option
-            self._option.text = self._option.text.lstrip(_UNLOADED_PREFIX)
+            self._option.text = verbose_name
             self._option.selectable = True
         else:
             self._option = None
         self.basename = basename
-        if verbose_name is None:
-            self.verbose_name = tools.format_verbose_name(basename)
-        else:
-            self.verbose_name = verbose_name
+        self.verbose_name = verbose_name
         self._menu = None
-        self.actions = set()
+        self.commands = set()
         self.modules[basename] = self
         self.loaded = True
 
-    @classmethod
-    def _menu_select(cls, user_ID, identifiers):
-        action = identifiers[-1]
-        parameters = action.parameters
-        if not parameters:
-            # If the action has no parameters, then its callback can be called
-            # straight away.
-            action.callback.callable_name(commands.ClientSayCommand.INFORMER,
-                                          user_ID=user_ID, by_menu=True)
-            return
-        # Otherwise, send the first parameter's menu.
-        parameters[0].menu.send(user_ID, reset_navigation=False)
-
-    def append(self, action):
-        """Register an action to this module. If this is the first action with
-        a menu interface, create a menu for the module.
+    def append(self, command):
+        """Register a command to this module. If this is the first command
+        with a menu interface, create a menu for the module.
 
         Arguments:
-        action - the action to register.
+        command - the command to register.
 
         """
-        if action.menu_interface:
+        if command.menu_interface:
             if self._menu is None:
                 self._menu = menus.Menu(self._menu_select)
                 self._menu.title = self.verbose_name
-                self._menu.description = ":: Actions"
+                self._menu.description = ":: Commands"
                 if self._option is None:
                     self._option = menus.Option(self.verbose_name)
                     self._option.set_submenu(self._menu)
-                    _module_menu.items.append(self.option)
+                    module_menu.items.append(self.option)
                 else:
                     self._option.text = self.verbose_name
                     self._option.set_submenu = self._menu
-                    self._option.selectable = True
-            module_menu.items.append(action.option)
-        self.actions.add(action)
+            module_menu.items.append(command.option)
+        self.commands.add(command)
+
+    @classmethod
+    def _menu_select(cls, user_ID, identifiers):
+        command = identifiers[-1]
+        parameters = command.parameters
+        if not parameters:
+            # If the command has no parameters, then its callback can be called
+            # straight away.
+            command.callback.callable_name(user_ID=user_ID, by_menu=True)
+            return
+        # Otherwise, send the first parameter's menu.
+        parameters[0].menu.send(user_ID, reset_navigation=False)
 
     @property
     def path(self):
@@ -143,125 +141,182 @@ class Module(object):
 
     def unload(self):
         """Stop the module's administration functionality by unregistering all
-        registered actions and stopping any related menu items from being
+        registered commands and stopping any related menu items from being
         selectable.
 
         """
         if self._menu is not None:
-            self._option.text = _UNLOADED_PREFIX + self.option.text
+            self._option.text = "(UNLOADED) %s" % self.option.text
             self._option.selectable = False
-        for action in self.actions:
-            action.unload()
+        for command in self.commands:
+            command.unload()
         self.loaded = False
 
-class Action(object):
-    """Create an action to be listed in the administration system.
+
+class _Command(object):
+    def _callback(self, args, informer=None, user_ID=None):
+        if not self.menu_interface:
+            self.callback(args, informer=informer, user_ID=user_ID,
+                          by_menu=False)
+            return
+        defaults = [parameter.default_value if parameter.default_value
+                    is not commands.ABSENT else None
+                    for parameter in self.callback.parameters]
+        for index, value in enumerate(args[:]):
+            if value == defaults[index]:
+                args.remove(value)
+        self.parameters[len(args)].menu.send(user_ID)
+        args.insert(0, self.basename)
+        menus.Menu.players[user_ID].identifiers.extend(args)
+        if informer == commands.ClientConsoleCommand.INFORMER:
+            commands.inform(informer,
+                            admin.whisper_text("You have been sent a menu "
+                                               "where you can select a value "
+                                               "for the next parameter.",
+                                               informer in
+                                               messages.coloured_informers))
+        return
+
+    def _invalid_syntax_callback(self, informer, command_name, parameters,
+                                 args, user_ID=None):
+        total_args = len(args)
+        if not self.menu_interface or total_args > len(parameters):
+            commands.inform(informer,
+                            admin.whisper_text("Invalid syntax for command, "
+                                               "%s." % command_name,
+                                               informer in
+                                               messages.coloured_informers),
+                            user_ID)
+        else:
+            self.parameters[total_args].menu.send(user_ID)
+            args.insert(0, self.basename)
+            menus.Menu.players[user_ID].identifiers.extend(args)
+
+    def unload(self):
+        """Unregister all registered client and server commands."""
+        self.client_console_command.unregister()
+        self.client_say_command.unregister()
+        if self._server_command is not None:
+            self._server_command.disable()
+        del self.commands[self.basename]
+
+
+class PlayerCommand(_Command):
+    """Create a command to be used by players. Functionality can vary from
+    command handling to a fully functional chained menu interface.
+
+    """
+    commands = {}
+    def __init__(self, callback, basename, description, menu_interface=True,
+                 verbose_name=None):
+        """Instantiate a Command object.
+
+        Arguments:
+        callback - the name to call when a command is submitted with valid
+        syntax and argument values.
+        basename - the basename to identify the command by.
+        description - a description of the command.
+        menu_interface (Keyword Default: True) - whether or not the command
+        should have a menu option and utilise the command's parameter's menus.
+        verbose_name (Keyword Default: None) - the custom verbose name to use
+        in text. If it is not passed, it will be constructed from the basename.
+
+        """
+        if basename in self.commands:
+            raise ModulesError("the %s command already exists." % basename)
+        self.callback = callback
+        self.basename = basename
+        self._client_callback = commands.Callback(self._callback, description)
+        self.parameters = self._client_callback.parameters
+        # Declare variable for readable line lengths.
+        _callback = self._client_callback
+        self._client_console_command = commands.ClientConsoleCommand(_callback)
+        self._client_console_command.register("%s%s" %(
+                                              admin.metadata.CONSOLE_PREFIX,
+                                              basename))
+        self._client_say_command = commands.ClientSayCommand(_callback)
+        self._client_say_command.register("%s%s" %(admin.metadata.CHAT_PREFIX,
+                                                   basename))
+        self.verbose_name = verbose_name or tools.format_verbose_name(basename)
+        self.commands[basename] = self
+
+
+class AdminCommand(_Command):
+    """Create a command to be listed in the administration system.
     Functionality can vary from command handling to a fully functional chained
     menu interface.
 
     """
-    actions = {}
+    commands = {}
     permissions = set()
 
-    def __init__(self, callback, basename, description,
-                 requires_permission=True, menu_interface=True,
-                 server_command=True, verbose_name=None):
-        """Instantiate an Action object.
+    def __init__(self, callback, basename, description, menu_interface=True,
+                 requires_special_permission=True, server_command=True,
+                 verbose_name=None):
+        """Instantiate a Command object.
 
         Arguments:
-        callback - the name to call when an action is submitted with valid
+        callback - the name to call when a command is submitted with valid
         syntax and argument values.
-        basename - the basename to identify the action by.
-        description - a description of the action.
-        requires_permission (Keyword Default: True) - whether or not there
-        should be a specific permission required to use this action.
-        menu_interface (Keyword Default: True) - whether or not the action
-        should have a menu option and utilise the action's parameter's menus.
+        basename - the basename to identify the command by.
+        description - a description of the command.
+        menu_interface (Keyword Default: True) - whether or not the command
+        should have a menu option and utilise the command's parameter's menus.
+        requires_special_permission (Keyword Default: True) - whether or not
+        there should be a specific permission required to use this command.
         server_command (Keyword Default: True) - whether or not a server
         command should be registered as well as client commands.
         verbose_name (Keyword Default: None) - the custom verbose name to use
         in text. If it is not passed, it will be constructed from the basename.
 
         """
-        if basename in self.actions:
-            raise ModulesError("the %s action already exists." % basename)
-        self.callable_name = callback
+        if basename in self.commands:
+            raise ModulesError("the %s command already exists." % basename)
+        self.callback = callback
         self.basename = basename
-        self.menu_interface = menu_interface
-        self.callback = _Callback(self, self._callback, description)
-        self.parameters = self.callback.parameters
-        client_console_command = _ClientConsoleCommand(self.callback)
-        client_console_command.register("%s%s" %(metadata.CONSOLE_PREFIX,
-                                                 basename))
-        client_say_command = _ClientSayCommand(self.callback)
-        client_say_command.register("%s%s" %(metadata.CHAT_PREFIX,
-                                             basename))
-        self._client_commands = (client_console_command, client_say_command)
+        self._client_callback = commands.Callback(self._callback, description)
+        self.parameters = self._client_callback.parameters
+        # Declare variable for readable line lengths.
+        _callback = self._client_callback
+        self._client_console_command = commands.ClientConsoleCommand(_callback)
+        self._client_console_command.register("%s%s" %(
+                                              admin.metadata.CONSOLE_PREFIX,
+                                              basename))
+        self._client_say_command = commands.ClientSayCommand(_callback)
+        self._client_say_command.register("%s%s" %(admin.metadata.CHAT_PREFIX,
+                                                   basename))
         if not server_command:
             self._server_command = None
         else:
-            self._server_command = commands.ServerCommand(self.callback)
-            self._server_command.register("%s%s" %(metadata.CONSOLE_PREFIX,
-                                                  basename))
-        if verbose_name is None:
-            self.verbose_name = tools.format_verbose_name(basename)
-        else:
-            self.verbose_name = verbose_name
+            # Declare variable for readable line lengths.
+            _callback = commands.Callback(self.callback, description)
+            self._server_command = commands.ServerCommand(_callback)
+            self._server_command.parameters = self.parameters
+            self._server_command.register("%s%s" %(
+                                          admin.metadata.CONSOLE_PREFIX,
+                                          basename))
+        self.verbose_name = verbose_name or tools.format_verbose_name(basename)
         if menu_interface:
             self._option = menus.MenuOption(self.verbose_name, self)
-        if requires_permission:
-            client_console_command.set_permission(basename)
-            client_say_command.set_permission(basename)
-            self._option.set_permission(basename)
-            self.permissions.add(basename)
+        self.menu_interface = menu_interface
+        if requires_special_permission:
+            permission = basename
+            self.permissions.add(permission)
         else:
-            client_console_command.set_permission()
-            client_say_command.set_permission()
-            self._option.set_permission()
-        self.actions[basename] = self
-
-    def _callback(self, informer, args, user_ID=None):
-        defaults = [parameter.default_value
-                    if parameter.default_value is not commands.ABSENT
-                    else None for parameter in self.parameters]
-        if (self.menu_interface and defaults and
-            informer is not commands.ServerCommand.INFORMER):
-            _args = list(args)
-            for index, value in enumerate(_args):
-                if value == defaults[index]:
-                    args.remove(value)
-            self.parameters[len(args)].menu.send(user_ID)
-            args.insert(0, self.basename)
-            menus.Menu.players[user_ID].identifiers.extend(args)
-            return
-        self.callable_name(informer, user_ID=user_ID, by_menu=False, *args)
-
-    def resend_menu(self, user_ID, parameter):
-        """Resend the menu for the parameter to the user.
-
-        Arguments:
-        user_ID - the unique session ID of the user who's menu should be
-        closed.
-        parameter - the parameter object to use.
-
-        """
-        player = menus.Menu.players[user_ID]
-        identifiers = player.identifiers
-        del identifiers[self.parameters.index(parameter): ]
-        parameter.menu.send(user_ID)
-        player.identifiers.extend(identifiers)
+            permission = None
+        self._client_console_command.set_permission(basename)
+        self._client_say_command.set_permission(basename)
+        self._option.set_permission(basename)
+        self.commands[basename] = self
 
     def unload(self):
         """Unregister all registered client and server commands."""
-        for command in self._client_commands:
-            command.unregister()
-        if self._server_command is not None:
-            self._server_command.unregister()
+        super(AdminCommand, self).unload()
         self.permissions.discard(self.basename)
-        del self.actions[self.basename]
+
 
 class Parameter(commands.Parameter):
-    """Create a parameter that can be used across multiple actions."""
+    """Create a parameter that can be used across multiple commands."""
 
     def __init__(self, basename, description, default_value=commands.ABSENT,
                  get_items=None, verbose_name=None):
@@ -285,15 +340,12 @@ class Parameter(commands.Parameter):
         else:
             self._get_items = get_items
             self.menu = Menu(self._item_getter)
-        if verbose_name is None:
-            self.verbose_name = tools.format_verbose_name(self.basename)
-        else:
-            self.verbose_name = verbose_name
+        self.verbose_name = verbose_name or tools.get_verbose_name(basename)
         self.menu.title = "Parameter: %s" % self.verbose_name
 
     def _item_getter(self, user_ID):
         if self._get_items is None:
-            items = []
+            items = self.menu.items
         else:
             items = self._get_items(user_ID)
         items.insert(0, menus.MenuOption("Default Value (%s)"
@@ -305,20 +357,24 @@ class Parameter(commands.Parameter):
     def _menu_select(cls, user_ID, *identifiers):
         identifiers = [identifier for identifier in identifiers
                        if identifier is not menus.ABSENT]
-        action = Action.actions[identifiers.pop(0)]
+        command = identifiers.pop(0)
+        command = (PlayerCommand.commands.get(command) or
+                   AdminCommand.commands.get(command))
         total_args = len(identifiers)
-        if total_args < len(action.parameters):
+        if total_args < len(command.parameters):
             # If arguments have been omitted, the next parameter's menu needs
             # sending.
-            action.parameters[total_args].menu.send(user_ID,
+            command.parameters[total_args].menu.send(user_ID,
                                                     reset_navigation=False)
         else:
-            # Otherwise, the action's callback can be called.
-            action.callable_name(commands.ClientSayCommand.INFORMER,
-                                 user_ID=user_ID, by_menu=True, *identifiers)
+            # Otherwise, the command's callback can be called.
+            command.callback(user_ID=user_ID, by_menu=True, *identifiers)
+
 
 class Menu(menus.Menu):
     """Create a menu to be used by a parameter, primarily or as a submenu."""
 
-    def __init__(self, get_items=None):
-        super(Menu, self).__init__(Parameter._menu_select, get_items=get_items)
+    def __init__(self, get_title=None, get_description=None, get_items=None):
+        super(Menu, self).__init__(Parameter._menu_select, get_title=get_title,
+                                   get_description=get_description,
+                                   get_items=get_items)
