@@ -2,9 +2,16 @@
 
 from setuptools import setup, find_packages
 
+
+def get_readme():
+    with open("README.md") as f:
+        return f.read()
+
+
 setup(name="OlympianAdmin",
       version="0.1",
       description="Administration System for Counter-Strike: Source Servers",
+      long_description=get_readme(),
       author="Adam Cunnington",
       author_email="ac@adamcunnington.info",
       license="GPLv3",
